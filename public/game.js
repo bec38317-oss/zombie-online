@@ -28,7 +28,6 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// Web Audio API 실시간 사운드 합성기
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(type) {
   if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -93,7 +92,6 @@ const particles = [];
 const floatingTexts = [];
 let screenShake = 0;
 
-// 환경 장식
 const envProps = [];
 for (let i = 0; i < 240; i++) {
   envProps.push({
@@ -145,6 +143,10 @@ window.joinSelectedRoom = (roomId) => {
   socket.emit('joinRoom', { roomId, nickname });
 };
 
+socket.on('joinRejected', (msg) => {
+  alert(msg);
+});
+
 socket.on('joinedRoom', (data) => {
   myId = data.playerId;
   mapSize = data.mapSize;
@@ -160,6 +162,34 @@ socket.on('worldState', (state) => {
 
 socket.on('sfx', (type) => playSound(type));
 socket.on('statusNotice', (msg) => showToast(msg));
+
+// 감염 발병 시 변이좀비 플레이 vs 강퇴 선택창 표시
+socket.on('infectionChoicePrompt', ({ mutantName, mutantHp }) => {
+  document.getElementById('biteOverlay').classList.add('hidden');
+  document.getElementById('mutationDesc').innerHTML =
+    `면역 극복에 실패하여 <b style="color:#f87171;">${mutantName}</b> (체력 ${mutantHp})로 변이하려 합니다.<br/>이대로 변칙 좀비가 되어 생존자들을 공격하시겠습니까, 아니면 서버에서 퇴장하시겠습니까?`;
+  document.getElementById('mutationModal').classList.remove('hidden');
+});
+
+document.getElementById('btnBecomeMutant').onclick = () => {
+  document.getElementById('mutationModal').classList.add('hidden');
+  socket.emit('resolveInfectionChoice', 'mutant');
+};
+
+document.getElementById('btnLeaveServer').onclick = () => {
+  document.getElementById('mutationModal').classList.add('hidden');
+  socket.emit('resolveInfectionChoice', 'leave');
+};
+
+socket.on('becameMutant', ({ name }) => {
+  showToast(`🧟 당신은 이제 '${name}' 변칙 좀비입니다! 생존자를 사냥하세요!`);
+  document.getElementById('controlsHelp').innerHTML =
+    `<b>WASD</b> 이동 · <b>Shift / R</b> 돌진 스킬 (쿨 10초) · <b>좌클릭</b> 물어뜯기 공격`;
+  document.getElementById('slotBar').classList.add('hidden');
+  document.getElementById('stamRow').classList.add('hidden');
+  document.getElementById('foodRow').classList.add('hidden');
+  document.getElementById('waterRow').classList.add('hidden');
+});
 
 socket.on('playerDamaged', () => {
   screenShake = 11;
@@ -223,6 +253,11 @@ socket.on('kickedByInfection', (msg) => {
   location.reload();
 });
 
+socket.on('kickedAndBanned', (msg) => {
+  alert(msg);
+  location.reload();
+});
+
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -269,27 +304,32 @@ setInterval(() => {
 function updateHUD() {
   const me = world.players[myId];
   if (!me) return;
-  document.getElementById('hpBar').style.width = me.hp + '%';
-  document.getElementById('stamBar').style.width = me.stamina + '%';
-  document.getElementById('foodBar').style.width = me.hunger + '%';
-  document.getElementById('waterBar').style.width = me.thirst + '%';
 
+  const hpPct = Math.max(0, Math.min(100, (me.hp / (me.maxHp || 100)) * 100));
+  document.getElementById('hpBar').style.width = hpPct + '%';
   document.getElementById('hpVal').textContent = Math.ceil(me.hp);
-  document.getElementById('stamVal').textContent = Math.ceil(me.stamina);
-  document.getElementById('foodVal').textContent = Math.ceil(me.hunger);
-  document.getElementById('waterVal').textContent = Math.ceil(me.thirst);
 
-  document.getElementById('slot1Name').textContent = me.melee.name;
-  document.getElementById('slot2Name').textContent = me.ranged
-    ? `${me.ranged.name} (${me.ranged.currentMag}/${me.reserveAmmo})`
-    : `미장착 (탄약:${me.reserveAmmo})`;
+  if (!me.isPlayerMutant) {
+    document.getElementById('stamBar').style.width = me.stamina + '%';
+    document.getElementById('foodBar').style.width = me.hunger + '%';
+    document.getElementById('waterBar').style.width = me.thirst + '%';
 
-  document.getElementById('slot1').classList.toggle('active', me.activeSlot === 'melee');
-  document.getElementById('slot2').classList.toggle('active', me.activeSlot === 'ranged');
+    document.getElementById('stamVal').textContent = Math.ceil(me.stamina);
+    document.getElementById('foodVal').textContent = Math.ceil(me.hunger);
+    document.getElementById('waterVal').textContent = Math.ceil(me.thirst);
 
-  document.getElementById('foodCnt').textContent = me.inv.food;
-  document.getElementById('waterCnt').textContent = me.inv.water;
-  document.getElementById('medCnt').textContent = me.inv.medkit;
+    document.getElementById('slot1Name').textContent = me.melee.name;
+    document.getElementById('slot2Name').textContent = me.ranged
+      ? `${me.ranged.name} (${me.ranged.currentMag}/${me.reserveAmmo})`
+      : `미장착 (탄약:${me.reserveAmmo})`;
+
+    document.getElementById('slot1').classList.toggle('active', me.activeSlot === 'melee');
+    document.getElementById('slot2').classList.toggle('active', me.activeSlot === 'ranged');
+
+    document.getElementById('foodCnt').textContent = me.inv.food;
+    document.getElementById('waterCnt').textContent = me.inv.water;
+    document.getElementById('medCnt').textContent = me.inv.medkit;
+  }
 
   document.getElementById('coordDisplay').textContent = `좌표: ${Math.floor(me.x)}, ${Math.floor(me.y)} | 사살: ${me.kills}`;
   const hour = Math.floor(world.worldTime * 24);
@@ -297,21 +337,19 @@ function updateHUD() {
   document.getElementById('timeDisplay').textContent = `${isNight ? '🌙 심야' : '☀️ 주간'} ${String(hour).padStart(2,'0')}:00`;
 
   const biteEl = document.getElementById('biteOverlay');
-  if (me.bitten) {
+  if (me.bitten && !me.pendingMutation) {
     biteEl.classList.remove('hidden');
     document.getElementById('biteTimerText').textContent =
-      `☣️ 좀비에게 물렸습니다! 50% 확률 변이/강퇴까지 ${Math.max(0, me.biteTimer).toFixed(1)}초`;
+      `☣️ 좀비에게 물렸습니다! 발병 판정까지 ${Math.max(0, me.biteTimer).toFixed(1)}초`;
   } else {
     biteEl.classList.add('hidden');
   }
 }
 
-// 바닥 드롭 물품 실물 아이콘 렌더링
 function drawLootItem(item, time) {
   ctx.save();
   ctx.translate(item.x, item.y);
 
-  // 바닥 은은한 발광 링 (파밍 가능 시인성)
   const pulse = 1 + Math.sin(time * 0.006 + item.id) * 0.12;
   const ringColor =
     item.category === 'ammo' ? 'rgba(250, 204, 21, 0.25)' :
@@ -324,9 +362,7 @@ function drawLootItem(item, time) {
   ctx.arc(0, 0, 17 * pulse, 0, Math.PI * 2);
   ctx.fill();
 
-  // 카테고리별 실물 아이콘 그리기
   if (item.category === 'food') {
-    // 전투 통조림 캔 아이콘
     ctx.fillStyle = '#d97706';
     ctx.fillRect(-9, -10, 18, 20);
     ctx.fillStyle = '#fef08a';
@@ -335,15 +371,13 @@ function drawLootItem(item, time) {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(-9, -10, 18, 20);
   } else if (item.category === 'water') {
-    // 생수병 아이콘
     ctx.fillStyle = '#38bdf8';
     ctx.fillRect(-6, -7, 12, 17);
     ctx.fillStyle = '#e0f2fe';
     ctx.fillRect(-6, -2, 12, 6);
     ctx.fillStyle = '#0284c7';
-    ctx.fillRect(-3, -11, 6, 4); // 병뚜껑
+    ctx.fillRect(-3, -11, 6, 4);
   } else if (item.category === 'medkit') {
-    // 적십자 구급상자 아이콘
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(-11, -8, 22, 16);
     ctx.strokeStyle = '#94a3b8';
@@ -353,7 +387,6 @@ function drawLootItem(item, time) {
     ctx.fillRect(-2.5, -5, 5, 10);
     ctx.fillRect(-5, -2.5, 10, 5);
   } else if (item.category === 'ammo') {
-    // 탄약 박스 & 탄알 3발 아이콘
     ctx.fillStyle = '#3f6212';
     ctx.fillRect(-10, -8, 20, 16);
     ctx.strokeStyle = '#a3e635';
@@ -364,7 +397,6 @@ function drawLootItem(item, time) {
     ctx.fillRect(-1.5, -4, 3, 8);
     ctx.fillRect(3, -4, 3, 8);
   } else if (item.category === 'melee') {
-    // 근접 무기 대각선 실루엣
     ctx.save();
     ctx.rotate(-Math.PI / 4);
     ctx.fillStyle = '#cbd5e1';
@@ -377,21 +409,19 @@ function drawLootItem(item, time) {
     }
     ctx.restore();
   } else if (item.category === 'ranged') {
-    // 원거리 총기 실루엣
     ctx.save();
     ctx.rotate(-Math.PI / 6);
     ctx.fillStyle = '#1e293b';
-    ctx.fillRect(-14, -3, 28, 5); // 총열
-    ctx.fillRect(-10, 1, 5, 8);   // 손잡이
-    ctx.fillRect(-2, 1, 4, 6);    // 탄창
+    ctx.fillRect(-14, -3, 28, 5);
+    ctx.fillRect(-10, 1, 5, 8);
+    ctx.fillRect(-2, 1, 4, 6);
     if (item.weaponId === 'sniper') {
       ctx.fillStyle = '#0ea5e9';
-      ctx.fillRect(-6, -6, 12, 2.5); // 스코프
+      ctx.fillRect(-6, -6, 12, 2.5);
     }
     ctx.restore();
   }
 
-  // 아이템 이름 라벨
   ctx.fillStyle = '#f8fafc';
   ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'center';
@@ -485,7 +515,6 @@ function drawZombie(z, time) {
   ctx.save();
   ctx.translate(z.x, z.y);
 
-  // 돌진(Dash) 중일 때 붉은 돌진 오라 표시
   if (z.isDashing) {
     ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
     ctx.beginPath();
@@ -502,7 +531,7 @@ function drawZombie(z, time) {
   ctx.rotate(z.angle || 0);
 
   if (z.isMutant) {
-    const pulse = Math.sin(time * 0.008 + z.id) * 3.5;
+    const pulse = Math.sin(time * 0.008 + (z.id || 1)) * 3.5;
     ctx.strokeStyle = '#7f1d1d';
     ctx.lineWidth = 5;
     for (let a = 0; a < 4; a++) {
@@ -652,7 +681,6 @@ function render(now) {
     ctx.fillText(`[${b.type}]`, b.x + 22, b.y + 38);
   });
 
-  // 바닥 드롭 아이템 아이콘 렌더링
   world.loot.forEach(item => {
     if (Math.abs(item.x - me.x) > viewW || Math.abs(item.y - me.y) > viewH) return;
     drawLootItem(item, now);
@@ -673,7 +701,24 @@ function render(now) {
   });
 
   Object.values(world.players).forEach(p => {
-    drawSurvivor(p, p.id === myId);
+    if (p.isPlayerMutant) {
+      drawZombie({
+        id: 999,
+        isMutant: true,
+        type: p.mutantType,
+        name: `🧟 ${p.nickname} [${p.mutantName}]`,
+        x: p.x,
+        y: p.y,
+        angle: p.angle,
+        hp: p.hp,
+        maxHp: p.maxHp,
+        radius: p.radius,
+        color: p.color,
+        isDashing: p.isDashing
+      }, now);
+    } else {
+      drawSurvivor(p, p.id === myId);
+    }
   });
 
   for (let i = particles.length - 1; i >= 0; i--) {
@@ -698,14 +743,14 @@ function render(now) {
 
   ctx.restore();
 
-  // 야간 손전등 광원 효과
+  // 야간 손전등 광원 효과 (변칙 좀비로 플레이 시에는 야간 시야가 더 밝음)
   const hour = world.worldTime * 24;
   let darkness = 0;
   if (hour >= 19 || hour <= 5) darkness = 0.82;
   else if (hour > 17) darkness = ((hour - 17) / 2) * 0.82;
   else if (hour < 7) darkness = ((7 - hour) / 2) * 0.82;
 
-  if (darkness > 0.05) {
+  if (darkness > 0.05 && !me.isPlayerMutant) {
     lctx.globalCompositeOperation = 'source-over';
     lctx.fillStyle = `rgba(3, 5, 10, ${darkness})`;
     lctx.fillRect(0, 0, lightCanvas.width, lightCanvas.height);
@@ -763,7 +808,7 @@ function render(now) {
   });
 
   Object.values(world.players).forEach(p => {
-    ctx.fillStyle = p.id === myId ? '#22c55e' : '#38bdf8';
+    ctx.fillStyle = p.id === myId ? '#22c55e' : p.isPlayerMutant ? '#ff0055' : '#38bdf8';
     ctx.beginPath();
     ctx.arc(mmX + (p.x / mapSize) * mmSize, mmY + (p.y / mapSize) * mmSize, 4, 0, Math.PI * 2);
     ctx.fill();
