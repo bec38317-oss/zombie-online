@@ -52,6 +52,13 @@ function playSound(type) {
     gain.gain.setValueAtTime(0.2, now);
     gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
     osc.start(now); osc.stop(now + 0.1);
+  } else if (type === 'dash') {
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(110, now);
+    osc.frequency.exponentialRampToValueAtTime(260, now + 0.18);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+    osc.start(now); osc.stop(now + 0.18);
   } else if (type === 'reload') {
     osc.type = 'square';
     osc.frequency.setValueAtTime(420, now);
@@ -185,6 +192,13 @@ socket.on('fxEvent', (ev) => {
     }
   } else if (ev.type === 'melee') {
     if (dist < 700) playSound('melee');
+  } else if (ev.type === 'dash') {
+    if (dist < 800) playSound('dash');
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const spd = 1.5 + Math.random() * 3.5;
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd, life: 16, color: '#ef4444', size: 4 });
+    }
   } else if (ev.type === 'blood') {
     bloodDecals.push({ x: ev.x + (Math.random()-0.5)*18, y: ev.y + (Math.random()-0.5)*18, r: 8 + Math.random()*12, alpha: 0.78 });
     if (bloodDecals.length > 200) bloodDecals.shift();
@@ -292,6 +306,100 @@ function updateHUD() {
   }
 }
 
+// 바닥 드롭 물품 실물 아이콘 렌더링
+function drawLootItem(item, time) {
+  ctx.save();
+  ctx.translate(item.x, item.y);
+
+  // 바닥 은은한 발광 링 (파밍 가능 시인성)
+  const pulse = 1 + Math.sin(time * 0.006 + item.id) * 0.12;
+  const ringColor =
+    item.category === 'ammo' ? 'rgba(250, 204, 21, 0.25)' :
+    item.category === 'medkit' ? 'rgba(244, 63, 94, 0.25)' :
+    item.category === 'food' || item.category === 'water' ? 'rgba(52, 211, 153, 0.25)' :
+    'rgba(56, 189, 248, 0.25)';
+
+  ctx.fillStyle = ringColor;
+  ctx.beginPath();
+  ctx.arc(0, 0, 17 * pulse, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 카테고리별 실물 아이콘 그리기
+  if (item.category === 'food') {
+    // 전투 통조림 캔 아이콘
+    ctx.fillStyle = '#d97706';
+    ctx.fillRect(-9, -10, 18, 20);
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(-9, -4, 18, 8);
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-9, -10, 18, 20);
+  } else if (item.category === 'water') {
+    // 생수병 아이콘
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(-6, -7, 12, 17);
+    ctx.fillStyle = '#e0f2fe';
+    ctx.fillRect(-6, -2, 12, 6);
+    ctx.fillStyle = '#0284c7';
+    ctx.fillRect(-3, -11, 6, 4); // 병뚜껑
+  } else if (item.category === 'medkit') {
+    // 적십자 구급상자 아이콘
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(-11, -8, 22, 16);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-11, -8, 22, 16);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-2.5, -5, 5, 10);
+    ctx.fillRect(-5, -2.5, 10, 5);
+  } else if (item.category === 'ammo') {
+    // 탄약 박스 & 탄알 3발 아이콘
+    ctx.fillStyle = '#3f6212';
+    ctx.fillRect(-10, -8, 20, 16);
+    ctx.strokeStyle = '#a3e635';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-10, -8, 20, 16);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(-6, -4, 3, 8);
+    ctx.fillRect(-1.5, -4, 3, 8);
+    ctx.fillRect(3, -4, 3, 8);
+  } else if (item.category === 'melee') {
+    // 근접 무기 대각선 실루엣
+    ctx.save();
+    ctx.rotate(-Math.PI / 4);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(-14, -2.5, 22, 5);
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(-16, -3, 6, 6);
+    if (item.weaponId === 'fireaxe' || item.weaponId === 'sledge') {
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(3, -7, 6, 14);
+    }
+    ctx.restore();
+  } else if (item.category === 'ranged') {
+    // 원거리 총기 실루엣
+    ctx.save();
+    ctx.rotate(-Math.PI / 6);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(-14, -3, 28, 5); // 총열
+    ctx.fillRect(-10, 1, 5, 8);   // 손잡이
+    ctx.fillRect(-2, 1, 4, 6);    // 탄창
+    if (item.weaponId === 'sniper') {
+      ctx.fillStyle = '#0ea5e9';
+      ctx.fillRect(-6, -6, 12, 2.5); // 스코프
+    }
+    ctx.restore();
+  }
+
+  // 아이템 이름 라벨
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(item.name, 0, -18);
+
+  ctx.restore();
+}
+
 function drawSurvivor(p, isMe) {
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -377,6 +485,14 @@ function drawZombie(z, time) {
   ctx.save();
   ctx.translate(z.x, z.y);
 
+  // 돌진(Dash) 중일 때 붉은 돌진 오라 표시
+  if (z.isDashing) {
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+    ctx.beginPath();
+    ctx.arc(0, 0, z.radius + 12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   ctx.fillStyle = 'rgba(0,0,0,0.52)';
   ctx.beginPath();
   ctx.arc(4, 6, z.radius + 2, 0, Math.PI * 2);
@@ -416,7 +532,7 @@ function drawZombie(z, time) {
     ctx.fillRect(6, -13, 18, 5);
     ctx.fillRect(6, 8, 18, 5);
 
-    ctx.fillStyle = z.color;
+    ctx.fillStyle = z.isDashing ? '#991b1b' : z.color;
     ctx.beginPath();
     ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
     ctx.fill();
@@ -469,7 +585,6 @@ function render(now) {
   ctx.save();
   ctx.translate(-camX, -camY);
 
-  // 지형 격자
   ctx.strokeStyle = 'rgba(255,255,255,0.035)';
   ctx.lineWidth = 1;
   const startX = Math.floor(camX / 120) * 120;
@@ -481,13 +596,11 @@ function render(now) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(mapSize, y); ctx.stroke();
   }
 
-  // 중앙 안전광장 바닥 표시
   ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
   ctx.beginPath();
   ctx.arc(3000, 3000, 180, 0, Math.PI * 2);
   ctx.fill();
 
-  // 환경 장식
   envProps.forEach(ep => {
     if (Math.abs(ep.x - me.x) > viewW || Math.abs(ep.y - me.y) > viewH) return;
     ctx.save();
@@ -517,7 +630,6 @@ function render(now) {
   ctx.lineWidth = 10;
   ctx.strokeRect(0, 0, mapSize, mapSize);
 
-  // 겹치지 않는 건물 렌더링
   buildings.forEach(b => {
     if (Math.abs(b.x - me.x) > viewW + 400 || Math.abs(b.y - me.y) > viewH + 400) return;
     const inside = me.x > b.x && me.x < b.x + b.w && me.y > b.y && me.y < b.y + b.h;
@@ -540,34 +652,17 @@ function render(now) {
     ctx.fillText(`[${b.type}]`, b.x + 22, b.y + 38);
   });
 
-  // 건물 파밍 아이템
+  // 바닥 드롭 아이템 아이콘 렌더링
   world.loot.forEach(item => {
     if (Math.abs(item.x - me.x) > viewW || Math.abs(item.y - me.y) > viewH) return;
-    const glow = item.category === 'ammo' ? '#facc15'
-      : item.category === 'medkit' ? '#f43f5e'
-      : item.category === 'food' || item.category === 'water' ? '#34d399' : '#38bdf8';
-
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(item.x, item.y, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(item.name, item.x, item.y - 14);
+    drawLootItem(item, now);
   });
 
-  // 좀비
   world.zombies.forEach(z => {
     if (Math.abs(z.x - me.x) > viewW || Math.abs(z.y - me.y) > viewH) return;
     drawZombie(z, now);
   });
 
-  // 총알
   world.bullets.forEach(b => {
     ctx.strokeStyle = '#fef08a';
     ctx.lineWidth = 3;
@@ -577,12 +672,10 @@ function render(now) {
     ctx.stroke();
   });
 
-  // 플레이어
   Object.values(world.players).forEach(p => {
     drawSurvivor(p, p.id === myId);
   });
 
-  // 파티클 & 데미지 팝업
   for (let i = particles.length - 1; i >= 0; i--) {
     const pt = particles[i];
     pt.x += pt.vx;
