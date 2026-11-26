@@ -37,7 +37,7 @@ const RANGED_WEAPONS = {
   sniper:  { id: 'sniper',  name: 'AWM 저격소총',  dmg: 165, magSize: 5,  cd: 1150, speed: 38, spread: 0.005, pellets: 1 }
 };
 
-// 변칙 좀비 5종 (일반 좀비보다 거대하고 기괴함)
+// 변칙 좀비 5종
 const MUTANT_TYPES = [
   { type: 'BRUTE',    name: '브루트 (거대 육괴)',   hp: 540, speed: 1.65, radius: 44, dmg: 38, color: '#590d22' },
   { type: 'STALKER',  name: '스토커 (사족 기형체)', hp: 190, speed: 3.9,  radius: 30, dmg: 22, color: '#3c096c' },
@@ -48,13 +48,13 @@ const MUTANT_TYPES = [
 
 const rooms = {};
 
-// 건물 절대 겹치지 않게 생성 (여백 150px 보장 + 중앙 스폰 안전지대 확보)
+// 건물 절대 겹치지 않게 생성
 function generateBuildings() {
   const buildings = [];
   const types = ['민가', '편의점', '종합병원', '경찰서', '군수창고'];
   const WALL_T = 16;
   const DOOR_W = 88;
-  const PADDING = 150; // 건물 간 최소 거리
+  const PADDING = 150;
 
   let attempts = 0;
   while (buildings.length < 46 && attempts < 3000) {
@@ -64,10 +64,8 @@ function generateBuildings() {
     const x = 320 + Math.floor(Math.random() * (MAP_SIZE - w - 640));
     const y = 320 + Math.floor(Math.random() * (MAP_SIZE - h - 640));
 
-    // 중앙 스폰 광장(2750~3250)은 비워둠
     if (x + w > 2750 && x < 3250 && y + h > 2750 && y < 3250) continue;
 
-    // 기존 건물과 겹침 검사 (AABB 충돌 + 여백)
     let overlaps = false;
     for (const b of buildings) {
       if (
@@ -84,7 +82,7 @@ function generateBuildings() {
 
     const id = buildings.length;
     const bType = types[id % types.length];
-    const doorSide = id % 4; // 0:상, 1:하, 2:좌, 3:우
+    const doorSide = id % 4;
     const walls = [];
 
     if (doorSide === 0) {
@@ -142,7 +140,6 @@ function resolveWallCollisions(entity, radius, buildings) {
   }
 }
 
-// 건물 내부 파밍 아이템 스폰 (근접10/원거리5/탄창/식량/물/구급상자)
 function spawnBuildingLoot(buildings) {
   const loot = [];
   let idCounter = 1;
@@ -420,13 +417,13 @@ setInterval(() => {
 
     room.worldTime = (room.worldTime + 0.0002) % 1;
 
-    // 방장 설정 주기마다 기본 좀비 스폰
+    // 방장 설정 주기마다 기본 좀비 스폰 (배회 상태 초기화 포함)
     if (now - room.lastZombieSpawn >= room.spawnInterval * 1000 && room.zombies.length < 150) {
       room.lastZombieSpawn = now;
       playerList.forEach(p => {
         for (let i = 0; i < 4; i++) {
           const ang = Math.random() * Math.PI * 2;
-          const dist = 600 + Math.random() * 450;
+          const dist = 620 + Math.random() * 480;
           const zx = Math.max(50, Math.min(MAP_SIZE - 50, p.x + Math.cos(ang) * dist));
           const zy = Math.max(50, Math.min(MAP_SIZE - 50, p.y + Math.sin(ang) * dist));
           room.zombies.push({
@@ -436,14 +433,20 @@ setInterval(() => {
             name: '감염자',
             x: zx,
             y: zy,
-            angle: 0,
+            angle: Math.random() * Math.PI * 2,
             hp: 80,
             maxHp: 80,
-            speed: 1.95 + Math.random() * 0.65,
+            speed: 2.0 + Math.random() * 0.6,
             radius: 18,
             dmg: 14,
             color: '#386641',
-            lastHit: 0
+            lastHit: 0,
+            wanderAngle: Math.random() * Math.PI * 2,
+            nextWanderChange: now + 1500 + Math.random() * 2500,
+            lastDash: 0,
+            dashUntil: 0,
+            dashAngle: 0,
+            isDashing: false
           });
         }
       });
@@ -482,7 +485,13 @@ setInterval(() => {
               radius: mSpec.radius,
               dmg: mSpec.dmg,
               color: mSpec.color,
-              lastHit: 0
+              lastHit: 0,
+              wanderAngle: Math.random() * Math.PI * 2,
+              nextWanderChange: now + 2000,
+              lastDash: 0,
+              dashUntil: 0,
+              dashAngle: 0,
+              isDashing: false
             });
             io.to(room.id).emit('killFeed', `☣️ [변이 경보] '${p.nickname}' 님이 사망하여 '${mSpec.name}'(으)로 변이했습니다!`);
             io.to(p.id).emit('kickedByInfection', `바이러스 변이로 사망하여 서버에서 강퇴되었습니다.\n죽은 자리에 '${mSpec.name}' 변칙 좀비가 탄생했습니다!`);
@@ -509,7 +518,7 @@ setInterval(() => {
       }
     });
 
-    // 총알 이동 및 벽/좀비 충돌
+    // 총알 이동 및 충돌
     for (let i = room.bullets.length - 1; i >= 0; i--) {
       const b = room.bullets[i];
       b.x += b.vx;
@@ -549,7 +558,7 @@ setInterval(() => {
       if (hit || b.life <= 0) room.bullets.splice(i, 1);
     }
 
-    // 좀비 추적 AI 및 피격 시 10% 물림 발생
+    // 좀비 AI: 평상시 무작위 배회 -> 가까이 오면 추적 -> 중거리 시 쿨타임 10초 돌진(Dash) 스킬
     for (let i = room.zombies.length - 1; i >= 0; i--) {
       const z = room.zombies[i];
       if (z.hp <= 0) {
@@ -569,6 +578,7 @@ setInterval(() => {
         continue;
       }
 
+      // 가장 가까운 플레이어 탐색
       let target = null;
       let minDist = Infinity;
       playerList.forEach(p => {
@@ -579,16 +589,41 @@ setInterval(() => {
         }
       });
 
-      if (target && minDist < 1300) {
+      // 감지 반경 (일반 좀비 420px, 변칙 좀비 550px)
+      const detectRange = z.isMutant ? 550 : 420;
+
+      if (target && minDist < detectRange) {
         const ang = Math.atan2(target.y - z.y, target.x - z.x);
         z.angle = ang;
-        z.x += Math.cos(ang) * z.speed;
-        z.y += Math.sin(ang) * z.speed;
+
+        // 10초 쿨타임 돌진 스킬 발동 조건 (거리 130 ~ 360px 사이일 때)
+        if (now > z.dashUntil && now - z.lastDash >= 10000 && minDist > 130 && minDist < 360) {
+          z.lastDash = now;
+          z.dashUntil = now + 450; // 0.45초 동안 고속 돌진
+          z.dashAngle = ang;
+          io.to(room.id).emit('fxEvent', { type: 'dash', x: z.x, y: z.y });
+        }
+
+        if (now < z.dashUntil) {
+          // 돌진 중 (기본 속도의 3.4배)
+          z.isDashing = true;
+          z.angle = z.dashAngle;
+          z.x += Math.cos(z.dashAngle) * (z.speed * 3.4);
+          z.y += Math.sin(z.dashAngle) * (z.speed * 3.4);
+        } else {
+          // 일반 추적 이동
+          z.isDashing = false;
+          z.x += Math.cos(ang) * z.speed;
+          z.y += Math.sin(ang) * z.speed;
+        }
+
         resolveWallCollisions(z, z.radius, room.buildings);
 
+        // 근접 물기 공격 판정 (돌진 중 부딪히면 추가 데미지)
         if (minDist <= z.radius + 19 && now - z.lastHit >= 1000) {
           z.lastHit = now;
-          target.hp -= z.dmg;
+          const hitDmg = z.isDashing ? Math.round(z.dmg * 1.4) : z.dmg;
+          target.hp -= hitDmg;
           io.to(target.id).emit('playerDamaged');
 
           if (!target.bitten && Math.random() < 0.10) {
@@ -598,6 +633,18 @@ setInterval(() => {
             io.to(room.id).emit('killFeed', `🩸 경고! '${target.nickname}' 님이 좀비에게 물렸습니다! (발병 30초 전)`);
           }
         }
+      } else {
+        // 플레이어가 멀리 있을 때는 무작위 방향으로 천천히 배회(Wander)
+        z.isDashing = false;
+        if (now >= z.nextWanderChange) {
+          z.wanderAngle = Math.random() * Math.PI * 2;
+          z.nextWanderChange = now + 1800 + Math.random() * 2600;
+        }
+        z.angle = z.wanderAngle;
+        const wanderSpeed = z.speed * 0.42;
+        z.x = Math.max(40, Math.min(MAP_SIZE - 40, z.x + Math.cos(z.wanderAngle) * wanderSpeed));
+        z.y = Math.max(40, Math.min(MAP_SIZE - 40, z.y + Math.sin(z.wanderAngle) * wanderSpeed));
+        resolveWallCollisions(z, z.radius, room.buildings);
       }
     }
 
