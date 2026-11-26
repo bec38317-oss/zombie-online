@@ -41,8 +41,26 @@
     </div>
   </div>
 
+  <!-- 감염 발병 시 운명 선택 팝업 -->
+  <div id="mutationModal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.86); z-index:200; display:flex; align-items:center; justify-content:center;">
+    <div style="background:#181012; border:2px solid #ef4444; border-radius:14px; padding:32px; max-width:460px; text-align:center; box-shadow:0 0 50px rgba(239,68,68,0.5);">
+      <div style="color:#f87171; font-size:13px; font-weight:bold; letter-spacing:1.5px; margin-bottom:8px;">☣️ VIRUS MUTATION CRITICAL</div>
+      <h2 style="color:#fff; font-size:24px; margin-bottom:12px;">바이러스 변이가 시작되었습니다!</h2>
+      <p id="mutationDesc" style="color:#d1d5db; font-size:14px; line-height:1.6; margin-bottom:24px;"></p>
+      <div style="display:flex; gap:12px;">
+        <button id="btnBecomeMutant" style="flex:1; padding:14px; background:linear-gradient(135deg,#dc2626,#7f1d1d); color:#fff; border:none; border-radius:8px; font-weight:bold; font-size:14px; cursor:pointer;">
+          🧟 변이 좀비로 플레이
+        </button>
+        <button id="btnLeaveServer" style="flex:1; padding:14px; background:#27272a; color:#e4e4e7; border:1px solid #52525b; border-radius:8px; font-weight:bold; font-size:14px; cursor:pointer;">
+          🚪 서버에서 나가기
+        </button>
+      </div>
+      <div style="margin-top:12px; font-size:12px; color:#9ca3af;">※ 10초 내 미선택 시 자동으로 서버에서 퇴장됩니다.</div>
+    </div>
+  </div>
+
   <div id="biteOverlay" class="hidden">
-    <div id="biteTimerText">☣️ 좀비에게 물렸습니다! 변이/강퇴까지 30.0초</div>
+    <div id="biteTimerText">☣️ 좀비에게 물렸습니다! 발병까지 30.0초</div>
   </div>
 
   <div id="damageFlash"></div>
@@ -52,7 +70,7 @@
     <div class="top-left-info">
       <div id="timeDisplay">☀️ 주간 06:00</div>
       <div id="coordDisplay">좌표: 3000, 3000 | 사살: 0</div>
-      <div class="controls-help">
+      <div id="controlsHelp" class="controls-help">
         <b>WASD</b> 이동 · <b>Shift</b> 달리기 · <b>좌클릭</b> 공격 · <b>R</b> 장전 · <b>F</b> 건물 파밍 · <b>1~5</b> 장비/생존품
       </div>
     </div>
@@ -61,12 +79,12 @@
 
     <div class="bars">
       <div class="bar-wrap"><span>HP</span><div class="bar"><div id="hpBar" class="fill hp"></div></div><b id="hpVal">100</b></div>
-      <div class="bar-wrap"><span>STM</span><div class="bar"><div id="stamBar" class="fill stam"></div></div><b id="stamVal">100</b></div>
-      <div class="bar-wrap"><span>식량</span><div class="bar"><div id="foodBar" class="fill food"></div></div><b id="foodVal">100</b></div>
-      <div class="bar-wrap"><span>갈증</span><div class="bar"><div id="waterBar" class="fill water"></div></div><b id="waterVal">100</b></div>
+      <div class="bar-wrap" id="stamRow"><span>STM</span><div class="bar"><div id="stamBar" class="fill stam"></div></div><b id="stamVal">100</b></div>
+      <div class="bar-wrap" id="foodRow"><span>식량</span><div class="bar"><div id="foodBar" class="fill food"></div></div><b id="foodVal">100</b></div>
+      <div class="bar-wrap" id="waterRow"><span>갈증</span><div class="bar"><div id="waterBar" class="fill water"></div></div><b id="waterVal">100</b></div>
     </div>
 
-    <div class="slots">
+    <div id="slotBar" class="slots">
       <div id="slot1" class="slot active"><small>[1] 근접</small><div id="slot1Name">맨주먹</div></div>
       <div id="slot2" class="slot"><small>[2] 원거리</small><div id="slot2Name">미장착</div></div>
       <div class="slot"><small>[3] 식량</small><div>× <span id="foodCnt">1</span></div></div>
