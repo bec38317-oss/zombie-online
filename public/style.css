@@ -1,0 +1,127 @@
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', 'Malgun Gothic', sans-serif; }
+body { background: #090b09; color: #ececec; overflow: hidden; user-select: none; }
+.hidden { display: none !important; }
+
+#lobby {
+  position: fixed; inset: 0;
+  background: radial-gradient(circle at center, #1e1313 0%, #060706 100%);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.lobby-box {
+  width: 860px; background: rgba(18, 20, 18, 0.96);
+  border: 1px solid #383c38; padding: 32px; border-radius: 14px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95), 0 0 35px rgba(220, 38, 38, 0.18);
+}
+.badge {
+  display: inline-block; background: rgba(220, 38, 38, 0.2); color: #f87171;
+  border: 1px solid rgba(220, 38, 38, 0.45); font-size: 11px; font-weight: bold;
+  padding: 4px 12px; border-radius: 20px; margin-bottom: 8px; letter-spacing: 1.5px;
+}
+h1 { color: #ef4444; font-size: 36px; letter-spacing: 3px; text-shadow: 0 0 22px rgba(239, 68, 68, 0.45); }
+.subtitle { color: #8b948b; margin-bottom: 22px; font-size: 14px; }
+
+.nick-row { margin-bottom: 20px; }
+.nick-row input {
+  width: 100%; padding: 14px 16px; font-size: 16px; background: #101210;
+  border: 1px solid #3f443f; color: #fff; border-radius: 8px; outline: none;
+}
+.nick-row input:focus { border-color: #ef4444; }
+
+.lobby-grid { display: grid; grid-template-columns: 1fr 1.35fr; gap: 22px; }
+.panel { background: #131513; padding: 20px; border-radius: 10px; border: 1px solid #2a2e2a; }
+.panel h3 { margin-bottom: 14px; color: #fbbf24; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.panel label { display: block; font-size: 12px; color: #9ca3af; margin: 10px 0 4px; }
+.panel input, .panel select {
+  width: 100%; padding: 10px; background: #0b0d0b; border: 1px solid #333833; color: #fff; border-radius: 6px;
+}
+.btn-danger {
+  width: 100%; margin-top: 18px; padding: 13px;
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  color: #fff; border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer;
+  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4); transition: transform 0.1s;
+}
+.btn-danger:hover { transform: translateY(-1px); filter: brightness(1.1); }
+
+.room-list { max-height: 265px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.room-item {
+  display: flex; justify-content: space-between; align-items: center;
+  background: #0d0f0d; padding: 12px 14px; border-radius: 8px; border: 1px solid #2b302b;
+}
+.room-item button {
+  padding: 8px 16px; background: #059669; border: none; color: #fff;
+  border-radius: 6px; cursor: pointer; font-weight: bold;
+}
+.room-item button:hover { background: #10b981; }
+
+#biteOverlay {
+  position: fixed; inset: 0; pointer-events: none; z-index: 50;
+  box-shadow: inset 0 0 110px rgba(220, 0, 0, 0.9);
+  animation: pulseRed 0.8s infinite alternate;
+}
+@keyframes pulseRed {
+  from { box-shadow: inset 0 0 60px rgba(180, 0, 0, 0.55); }
+  to { box-shadow: inset 0 0 150px rgba(255, 0, 0, 0.98); }
+}
+#biteTimerText {
+  position: absolute; top: 24px; left: 50%; transform: translateX(-50%);
+  background: rgba(140, 0, 0, 0.92); padding: 10px 26px; border-radius: 30px;
+  font-weight: bold; font-size: 17px; border: 2px solid #f87171;
+  box-shadow: 0 0 25px rgba(255, 0, 0, 0.7);
+}
+
+#damageFlash {
+  position: fixed; inset: 0; pointer-events: none; z-index: 45;
+  background: radial-gradient(circle, transparent 50%, rgba(220, 0, 0, 0.55) 100%);
+  opacity: 0; transition: opacity 0.15s;
+}
+
+#toast {
+  position: fixed; top: 82px; left: 50%; transform: translateX(-50%);
+  background: rgba(15, 18, 15, 0.92); border: 1px solid #fbbf24; color: #fef3c7;
+  padding: 10px 22px; border-radius: 8px; z-index: 60; font-size: 14px; font-weight: bold;
+}
+
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+.top-left-info { position: absolute; top: 16px; left: 18px; display: flex; flex-direction: column; gap: 6px; }
+#timeDisplay {
+  display: inline-block; width: fit-content; background: rgba(12, 15, 12, 0.88);
+  border: 1px solid #333; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 14px;
+}
+#coordDisplay { font-size: 12px; color: #9ca3af; background: rgba(0,0,0,0.65); padding: 4px 10px; border-radius: 4px; width: fit-content; }
+.controls-help { font-size: 12px; color: #a3a3a3; background: rgba(0,0,0,0.65); padding: 5px 10px; border-radius: 4px; }
+
+#killFeed {
+  position: absolute; top: 215px; right: 20px; width: 320px;
+  display: flex; flex-direction: column; gap: 5px; align-items: flex-end;
+}
+.feed-msg {
+  background: rgba(10, 12, 10, 0.85); border-right: 3px solid #ef4444;
+  padding: 6px 12px; border-radius: 4px; font-size: 12px; color: #e5e7eb;
+}
+
+.bars {
+  position: absolute; bottom: 22px; left: 22px; width: 255px;
+  background: rgba(12, 14, 12, 0.88); padding: 12px; border-radius: 8px; border: 1px solid #2d322d;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.bar-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.bar-wrap span { width: 34px; color: #aaa; font-weight: bold; }
+.bar-wrap b { width: 26px; text-align: right; font-size: 11px; }
+.bar { flex: 1; height: 10px; background: #1f221f; border-radius: 3px; overflow: hidden; }
+.fill { height: 100%; transition: width 0.1s; }
+.hp { background: linear-gradient(90deg, #dc2626, #f87171); }
+.stam { background: linear-gradient(90deg, #d97706, #fbbf24); }
+.food { background: linear-gradient(90deg, #65a30d, #a3e635); }
+.water { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+
+.slots {
+  position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px;
+}
+.slot {
+  background: rgba(14, 16, 14, 0.92); border: 1px solid #333833; padding: 10px 16px;
+  border-radius: 8px; text-align: center; min-width: 108px;
+}
+.slot small { display: block; font-size: 10px; color: #888; margin-bottom: 3px; }
+.slot div { font-size: 13px; font-weight: bold; }
+.slot.active { border-color: #fbbf24; background: rgba(55, 40, 15, 0.94); box-shadow: 0 0 15px rgba(251, 191, 36, 0.25); }
