@@ -82,22 +82,53 @@ h1 { color: #ef4444; font-size: 36px; letter-spacing: 3px; text-shadow: 0 0 22px
 }
 
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
-.top-left-info { position: absolute; top: 16px; left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.top-left-info { position: absolute; top: 16px; left: 18px; display: flex; flex-direction: column; gap: 5px; }
 #timeDisplay {
   display: inline-block; width: fit-content; background: rgba(12, 15, 12, 0.88);
   border: 1px solid #333; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 14px;
 }
-#coordDisplay { font-size: 12px; color: #9ca3af; background: rgba(0,0,0,0.65); padding: 4px 10px; border-radius: 4px; width: fit-content; }
+#coordDisplay, #armorDisplay {
+  font-size: 12px; color: #d1d5db; background: rgba(0,0,0,0.68);
+  padding: 4px 10px; border-radius: 4px; width: fit-content;
+}
 .controls-help { font-size: 12px; color: #a3a3a3; background: rgba(0,0,0,0.65); padding: 5px 10px; border-radius: 4px; }
 
+/* 랭킹 보드 */
+#rankingBox {
+  position: absolute; top: 205px; right: 20px; width: 215px;
+  background: rgba(10, 13, 10, 0.86); border: 1px solid #2e342e;
+  border-radius: 8px; padding: 10px 12px;
+}
+.rank-title { font-size: 12px; font-weight: bold; color: #fbbf24; margin-bottom: 6px; border-bottom: 1px solid #262b26; padding-bottom: 4px; }
+.rank-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: #e5e7eb; }
+.rank-row.me { color: #4ade80; font-weight: bold; }
+
 #killFeed {
-  position: absolute; top: 215px; right: 20px; width: 320px;
+  position: absolute; top: 345px; right: 20px; width: 320px;
   display: flex; flex-direction: column; gap: 5px; align-items: flex-end;
 }
 .feed-msg {
   background: rgba(10, 12, 10, 0.85); border-right: 3px solid #ef4444;
   padding: 6px 12px; border-radius: 4px; font-size: 12px; color: #e5e7eb;
 }
+
+/* 채팅창 */
+#chatBox {
+  position: absolute; bottom: 165px; left: 22px; width: 320px;
+  pointer-events: auto; display: flex; flex-direction: column; gap: 4px;
+}
+#chatMessages {
+  max-height: 130px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px;
+  background: rgba(8, 10, 8, 0.62); padding: 8px; border-radius: 6px; font-size: 12px;
+}
+.chat-line { color: #f3f4f6; word-break: break-all; line-height: 1.35; }
+.chat-line b { color: #38bdf8; }
+.chat-line.mutant b { color: #f87171; }
+#chatInput {
+  width: 100%; padding: 7px 10px; background: rgba(12, 15, 12, 0.88);
+  border: 1px solid #3f443f; color: #fff; border-radius: 6px; font-size: 12px; outline: none;
+}
+#chatInput:focus { border-color: #fbbf24; }
 
 .bars {
   position: absolute; bottom: 22px; left: 22px; width: 255px;
