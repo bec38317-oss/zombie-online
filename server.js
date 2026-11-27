@@ -37,47 +37,135 @@ const RANGED_WEAPONS = {
   sniper:  { id: 'sniper',  name: 'AWM 저격소총',  dmg: 165, magSize: 5,  cd: 1150, speed: 38, spread: 0.005, pellets: 1 }
 };
 
-// 변칙 좀비 5종 (플레이어 기본 걷기 3.2보다 빠름)
+// 갑옷 5종 (매우 낮은 확률로 건물에서 드랍)
+const ARMORS = {
+  leather:    { id: 'leather',    name: '가죽 자켓',       reduce: 0.15, color: '#78350f', tier: 1 },
+  police:     { id: 'police',     name: '경찰 방탄복',     reduce: 0.30, color: '#1e3a8a', tier: 2 },
+  military:   { id: 'military',   name: '군용 방탄조끼',   reduce: 0.45, color: '#3f6212', tier: 3 },
+  specops:    { id: 'specops',    name: '특수부대 방호복', reduce: 0.60, color: '#18181b', tier: 4 },
+  juggernaut: { id: 'juggernaut', name: '저거너트 중장갑', reduce: 0.75, color: '#b91c1c', tier: 5 }
+};
+
+// 변칙 좀비 5종 (고유 패시브 + 고유 액티브 스킬)
 const MUTANT_TYPES = [
-  { type: 'BRUTE',    name: '브루트 (거대 육괴)',   hp: 540, speed: 3.35, radius: 44, dmg: 38, color: '#590d22' },
-  { type: 'STALKER',  name: '스토커 (사족 기형체)', hp: 210, speed: 4.45, radius: 30, dmg: 22, color: '#3c096c' },
-  { type: 'ACID',     name: '애시드 (부식 농포체)', hp: 260, speed: 3.65, radius: 34, dmg: 26, color: '#2b9348' },
-  { type: 'SCREAMER', name: '스크리머 (기생 비명체)', hp: 200, speed: 3.95, radius: 31, dmg: 19, color: '#bc6c25' },
-  { type: 'BOMBER',   name: '보머 (팽창 자폭체)',   hp: 230, speed: 3.80, radius: 40, dmg: 70, color: '#9b2226' }
+  {
+    type: 'BRUTE', name: '브루트 (거대 육괴)', hp: 580, speed: 3.35, radius: 44, dmg: 38, color: '#590d22',
+    passiveDesc: '강철 피부 (받는 피해 35% 감소)', skillName: '대지 강타 (광역 충격파)'
+  },
+  {
+    type: 'STALKER', name: '스토커 (사족 기형체)', hp: 220, speed: 4.5, radius: 30, dmg: 24, color: '#3c096c',
+    passiveDesc: '그림자 위장 (반투명 은신)', skillName: '그림자 도약 (순간 급습)'
+  },
+  {
+    type: 'ACID', name: '애시드 (부식 농포체)', hp: 270, speed: 3.65, radius: 34, dmg: 26, color: '#2b9348',
+    passiveDesc: '맹독 오라 (근접 시 지속 부식)', skillName: '산성액 분사 (독 장판)'
+  },
+  {
+    type: 'SCREAMER', name: '스크리머 (기생 비명체)', hp: 210, speed: 3.95, radius: 31, dmg: 20, color: '#bc6c25',
+    passiveDesc: '광기 지휘 (주변 좀비 이속 +30%)', skillName: '공포의 비명 (좀비 소집/스턴)'
+  },
+  {
+    type: 'BOMBER', name: '보머 (팽창 자폭체)', hp: 240, speed: 3.85, radius: 40, dmg: 65, color: '#9b2226',
+    passiveDesc: '불안정 폭발 (사망 시 대폭발)', skillName: '자폭 점화 (고속 돌진 후 자폭)'
+  }
 ];
 
 const rooms = {};
 
-function generateBuildings() {
+// 겹치지 않는 지형지물 (강/다리, 숲, 바위산, 동굴) + 건물 생성
+function generateWorldMap() {
   const buildings = [];
+  const terrain = {
+    rivers: [],    // 강줄기 및 다리
+    mountains: [], // 바위산 (충돌 있음)
+    forests: [],   // 울창한 숲 (이동 가능, 나무 디테일)
+    caves: []      // 동굴 (진입 가능, 희귀 전리품)
+  };
+
+  // 1. 강줄기 2개 생성 (가로 강 + 세로 강 교차, 다리 포함)
+  terrain.rivers.push({
+    x: 0, y: 1650, w: MAP_SIZE, h: 150, horizontal: true,
+    bridges: [1100, 3000, 4800]
+  });
+  terrain.rivers.push({
+    x: 4250, y: 0, w: 150, h: MAP_SIZE, horizontal: false,
+    bridges: [900, 2900, 4900]
+  });
+
+  const occupiedRects = [
+    { x: 2720, y: 2720, w: 560, h: 560 }, // 중앙 안전 광장
+    { x: 0, y: 1580, w: MAP_SIZE, h: 290 }, // 가로 강 주변 여백
+    { x: 4180, y: 0, w: 290, h: MAP_SIZE }  // 세로 강 주변 여백
+  ];
+
+  function canPlaceRect(x, y, w, h, pad = 110) {
+    if (x < 220 || y < 220 || x + w > MAP_SIZE - 220 || y + h > MAP_SIZE - 220) return false;
+    for (const r of occupiedRects) {
+      if (x < r.x + r.w + pad && x + w + pad > r.x && y < r.y + r.h + pad && y + h + pad > r.y) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // 2. 거대 바위산 14개 배치
+  let tries = 0;
+  while (terrain.mountains.length < 14 && tries < 1000) {
+    tries++;
+    const r = 110 + Math.floor(Math.random() * 65);
+    const cx = 350 + Math.floor(Math.random() * (MAP_SIZE - 700));
+    const cy = 350 + Math.floor(Math.random() * (MAP_SIZE - 700));
+    if (canPlaceRect(cx - r, cy - r, r * 2, r * 2, 120)) {
+      terrain.mountains.push({ id: terrain.mountains.length, x: cx, y: cy, r });
+      occupiedRects.push({ x: cx - r, y: cy - r, w: r * 2, h: r * 2 });
+    }
+  }
+
+  // 3. 어두운 동굴 8개 배치
+  tries = 0;
+  while (terrain.caves.length < 8 && tries < 1000) {
+    tries++;
+    const r = 95 + Math.floor(Math.random() * 35);
+    const cx = 350 + Math.floor(Math.random() * (MAP_SIZE - 700));
+    const cy = 350 + Math.floor(Math.random() * (MAP_SIZE - 700));
+    if (canPlaceRect(cx - r, cy - r, r * 2, r * 2, 120)) {
+      terrain.caves.push({ id: terrain.caves.length, x: cx, y: cy, r });
+      occupiedRects.push({ x: cx - r, y: cy - r, w: r * 2, h: r * 2 });
+    }
+  }
+
+  // 4. 울창한 숲 군락 18개 배치
+  tries = 0;
+  while (terrain.forests.length < 18 && tries < 1000) {
+    tries++;
+    const r = 140 + Math.floor(Math.random() * 80);
+    const cx = 350 + Math.floor(Math.random() * (MAP_SIZE - 700));
+    const cy = 350 + Math.floor(Math.random() * (MAP_SIZE - 700));
+    if (canPlaceRect(cx - r, cy - r, r * 2, r * 2, 90)) {
+      const trees = [];
+      for (let t = 0; t < 11; t++) {
+        const ang = Math.random() * Math.PI * 2;
+        const dist = Math.random() * (r - 28);
+        trees.push({ dx: Math.cos(ang) * dist, dy: Math.sin(ang) * dist, tr: 22 + Math.random() * 14 });
+      }
+      terrain.forests.push({ id: terrain.forests.length, x: cx, y: cy, r, trees });
+      occupiedRects.push({ x: cx - r, y: cy - r, w: r * 2, h: r * 2 });
+    }
+  }
+
+  // 5. 겹치지 않는 고디테일 건물 42채 배치
   const types = ['민가', '편의점', '종합병원', '경찰서', '군수창고'];
   const WALL_T = 16;
   const DOOR_W = 88;
-  const PADDING = 150;
+  tries = 0;
+  while (buildings.length < 42 && tries < 3000) {
+    tries++;
+    const w = 350 + Math.floor(Math.random() * 170);
+    const h = 290 + Math.floor(Math.random() * 150);
+    const x = 300 + Math.floor(Math.random() * (MAP_SIZE - w - 600));
+    const y = 300 + Math.floor(Math.random() * (MAP_SIZE - h - 600));
 
-  let attempts = 0;
-  while (buildings.length < 46 && attempts < 3000) {
-    attempts++;
-    const w = 340 + Math.floor(Math.random() * 180);
-    const h = 280 + Math.floor(Math.random() * 160);
-    const x = 320 + Math.floor(Math.random() * (MAP_SIZE - w - 640));
-    const y = 320 + Math.floor(Math.random() * (MAP_SIZE - h - 640));
-
-    if (x + w > 2750 && x < 3250 && y + h > 2750 && y < 3250) continue;
-
-    let overlaps = false;
-    for (const b of buildings) {
-      if (
-        x < b.x + b.w + PADDING &&
-        x + w + PADDING > b.x &&
-        y < b.y + b.h + PADDING &&
-        y + h + PADDING > b.y
-      ) {
-        overlaps = true;
-        break;
-      }
-    }
-    if (overlaps) continue;
+    if (!canPlaceRect(x, y, w, h, 130)) continue;
 
     const id = buildings.length;
     const bType = types[id % types.length];
@@ -87,42 +175,34 @@ function generateBuildings() {
     if (doorSide === 0) {
       walls.push({ x, y, w: (w - DOOR_W) / 2, h: WALL_T });
       walls.push({ x: x + (w + DOOR_W) / 2, y, w: (w - DOOR_W) / 2, h: WALL_T });
-    } else {
-      walls.push({ x, y, w, h: WALL_T });
-    }
+    } else walls.push({ x, y, w, h: WALL_T });
 
     if (doorSide === 1) {
       walls.push({ x, y: y + h - WALL_T, w: (w - DOOR_W) / 2, h: WALL_T });
       walls.push({ x: x + (w + DOOR_W) / 2, y: y + h - WALL_T, w: (w - DOOR_W) / 2, h: WALL_T });
-    } else {
-      walls.push({ x, y: y + h - WALL_T, w, h: WALL_T });
-    }
+    } else walls.push({ x, y: y + h - WALL_T, w, h: WALL_T });
 
     if (doorSide === 2) {
       walls.push({ x, y, w: WALL_T, h: (h - DOOR_W) / 2 });
       walls.push({ x, y: y + (h + DOOR_W) / 2, w: WALL_T, h: (h - DOOR_W) / 2 });
-    } else {
-      walls.push({ x, y, w: WALL_T, h });
-    }
+    } else walls.push({ x, y, w: WALL_T, h });
 
     if (doorSide === 3) {
       walls.push({ x: x + w - WALL_T, y, w: WALL_T, h: (h - DOOR_W) / 2 });
       walls.push({ x: x + w - WALL_T, y: y + (h + DOOR_W) / 2, w: WALL_T, h: (h - DOOR_W) / 2 });
-    } else {
-      walls.push({ x: x + w - WALL_T, y, w: WALL_T, h });
-    }
+    } else walls.push({ x: x + w - WALL_T, y, w: WALL_T, h });
 
     buildings.push({ id, x, y, w, h, type: bType, doorSide, walls });
+    occupiedRects.push({ x, y, w, h });
   }
-  return buildings;
+
+  return { buildings, terrain };
 }
 
-function resolveWallCollisions(entity, radius, buildings) {
+function resolveWorldCollisions(entity, radius, buildings, terrain) {
+  // 건물 벽 충돌
   for (let b of buildings) {
-    if (
-      entity.x + radius < b.x || entity.x - radius > b.x + b.w ||
-      entity.y + radius < b.y || entity.y - radius > b.y + b.h
-    ) continue;
+    if (entity.x + radius < b.x || entity.x - radius > b.x + b.w || entity.y + radius < b.y || entity.y - radius > b.y + b.h) continue;
     for (let w of b.walls) {
       const closestX = Math.max(w.x, Math.min(entity.x, w.x + w.w));
       const closestY = Math.max(w.y, Math.min(entity.y, w.y + w.h));
@@ -137,10 +217,42 @@ function resolveWallCollisions(entity, radius, buildings) {
       }
     }
   }
+  // 바위산 원형 충돌
+  if (terrain && terrain.mountains) {
+    for (let m of terrain.mountains) {
+      const dx = entity.x - m.x;
+      const dy = entity.y - m.y;
+      const minDist = radius + m.r * 0.88;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < minDist * minDist) {
+        const dist = Math.sqrt(distSq) || 0.001;
+        const overlap = minDist - dist;
+        entity.x += (dx / dist) * overlap;
+        entity.y += (dy / dist) * overlap;
+      }
+    }
+  }
 }
 
-// 길찾기용 장애물 충돌 체크 및 우회 각도 계산 (Steering Pathfinding)
-function isBlockedAt(px, py, radius, buildings) {
+function isInWater(x, y, terrain) {
+  if (!terrain || !terrain.rivers) return false;
+  for (const r of terrain.rivers) {
+    if (r.horizontal) {
+      if (y > r.y && y < r.y + r.h) {
+        const onBridge = r.bridges.some(bx => Math.abs(x - bx) < 75);
+        if (!onBridge) return true;
+      }
+    } else {
+      if (x > r.x && x < r.x + r.w) {
+        const onBridge = r.bridges.some(by => Math.abs(y - by) < 75);
+        if (!onBridge) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function isBlockedAt(px, py, radius, buildings, terrain) {
   if (px < 30 || px > MAP_SIZE - 30 || py < 30 || py > MAP_SIZE - 30) return true;
   for (let b of buildings) {
     if (px + radius < b.x || px - radius > b.x + b.w || py + radius < b.y || py - radius > b.y + b.h) continue;
@@ -152,19 +264,22 @@ function isBlockedAt(px, py, radius, buildings) {
       if (dx * dx + dy * dy < radius * radius) return true;
     }
   }
+  if (terrain && terrain.mountains) {
+    for (let m of terrain.mountains) {
+      if (Math.hypot(px - m.x, py - m.y) < radius + m.r * 0.88) return true;
+    }
+  }
   return false;
 }
 
-function findSmartPathAngle(z, targetX, targetY, buildings) {
+function findSmartPathAngle(z, targetX, targetY, buildings, terrain) {
   const desiredAngle = Math.atan2(targetY - z.y, targetX - z.x);
   const lookAhead = z.radius + 36;
 
-  // 직선 경로가 막혀있지 않으면 그대로 직진
-  if (!isBlockedAt(z.x + Math.cos(desiredAngle) * lookAhead, z.y + Math.sin(desiredAngle) * lookAhead, z.radius, buildings)) {
+  if (!isBlockedAt(z.x + Math.cos(desiredAngle) * lookAhead, z.y + Math.sin(desiredAngle) * lookAhead, z.radius, buildings, terrain)) {
     return desiredAngle;
   }
 
-  // 막혀있으면 16방향(22.5도 단위) 중 막히지 않고 목표와 가장 가까운 우회 경로 탐색
   let bestAngle = desiredAngle;
   let bestScore = -Infinity;
   const distToTarget = Math.hypot(targetX - z.x, targetY - z.y);
@@ -178,9 +293,9 @@ function findSmartPathAngle(z, targetX, targetY, buildings) {
       const midX = z.x + Math.cos(candAng) * (stepDist * 0.5);
       const midY = z.y + Math.sin(candAng) * (stepDist * 0.5);
 
-      if (!isBlockedAt(nx, ny, z.radius, buildings) && !isBlockedAt(midX, midY, z.radius, buildings)) {
+      if (!isBlockedAt(nx, ny, z.radius, buildings, terrain) && !isBlockedAt(midX, midY, z.radius, buildings, terrain)) {
         const alignScore = Math.cos(candAng - desiredAngle);
-        const persistBonus = z.avoidDir === sign ? 0.25 : 0; // 한쪽 방향으로 일관되게 벽을 돌아나가도록 보너스
+        const persistBonus = z.avoidDir === sign ? 0.25 : 0;
         const score = alignScore + persistBonus;
         if (score > bestScore) {
           bestScore = score;
@@ -194,11 +309,13 @@ function findSmartPathAngle(z, targetX, targetY, buildings) {
   return bestAngle;
 }
 
-function spawnBuildingLoot(buildings) {
+// 건물 + 동굴 파밍 아이템 생성 (갑옷 5종 극악 확률 포함)
+function spawnWorldLoot(buildings, terrain) {
   const loot = [];
   let idCounter = 1;
   const meleeKeys = Object.keys(MELEE_WEAPONS).filter(k => k !== 'fist');
   const rangedKeys = Object.keys(RANGED_WEAPONS);
+  const armorKeys = Object.keys(ARMORS);
 
   buildings.forEach(b => {
     const itemCount = 3 + Math.floor(Math.random() * 3);
@@ -208,13 +325,18 @@ function spawnBuildingLoot(buildings) {
       const roll = Math.random();
       let item = null;
 
-      if (b.type === '종합병원') {
-        if (roll < 0.55) item = { category: 'medkit', name: '응급 구급상자', amount: 65 };
-        else if (roll < 0.80) item = { category: 'water', name: '정제 생수병', amount: 45 };
+      // 약 4.5%의 매우 낮은 확률로 갑옷 5종 드랍
+      if (roll < 0.045) {
+        const aRoll = Math.random();
+        const aKey = aRoll < 0.40 ? 'leather' : aRoll < 0.68 ? 'police' : aRoll < 0.86 ? 'military' : aRoll < 0.96 ? 'specops' : 'juggernaut';
+        item = { category: 'armor', armorId: aKey, name: `${ARMORS[aKey].name} (방어 ${Math.round(ARMORS[aKey].reduce*100)}%)` };
+      } else if (b.type === '종합병원') {
+        if (roll < 0.58) item = { category: 'medkit', name: '응급 구급상자', amount: 65 };
+        else if (roll < 0.82) item = { category: 'water', name: '정제 생수병', amount: 45 };
         else item = { category: 'melee', weaponId: 'knife', name: MELEE_WEAPONS.knife.name };
       } else if (b.type === '경찰서' || b.type === '군수창고') {
-        if (roll < 0.45) item = { category: 'ammo', name: '군용 탄창 (+25발)', amount: 25 };
-        else if (roll < 0.78) {
+        if (roll < 0.48) item = { category: 'ammo', name: '군용 탄창 (+25발)', amount: 25 };
+        else if (roll < 0.80) {
           const rKey = rangedKeys[Math.floor(Math.random() * rangedKeys.length)];
           item = { category: 'ranged', weaponId: rKey, name: RANGED_WEAPONS[rKey].name };
         } else {
@@ -222,10 +344,10 @@ function spawnBuildingLoot(buildings) {
           item = { category: 'melee', weaponId: mKey, name: MELEE_WEAPONS[mKey].name };
         }
       } else {
-        if (roll < 0.28) item = { category: 'food', name: '전투 통조림', amount: 40 };
-        else if (roll < 0.55) item = { category: 'water', name: '생수병', amount: 45 };
-        else if (roll < 0.70) item = { category: 'medkit', name: '구급상자', amount: 60 };
-        else if (roll < 0.84) item = { category: 'ammo', name: '표준 탄창 (+15발)', amount: 15 };
+        if (roll < 0.30) item = { category: 'food', name: '전투 통조림', amount: 40 };
+        else if (roll < 0.57) item = { category: 'water', name: '생수병', amount: 45 };
+        else if (roll < 0.72) item = { category: 'medkit', name: '구급상자', amount: 60 };
+        else if (roll < 0.85) item = { category: 'ammo', name: '표준 탄창 (+15발)', amount: 15 };
         else if (roll < 0.94) {
           const mKey = meleeKeys[Math.floor(Math.random() * meleeKeys.length)];
           item = { category: 'melee', weaponId: mKey, name: MELEE_WEAPONS[mKey].name };
@@ -237,6 +359,16 @@ function spawnBuildingLoot(buildings) {
       loot.push({ id: idCounter++, x: lx, y: ly, ...item });
     }
   });
+
+  // 동굴 내부 희귀 전리품
+  if (terrain && terrain.caves) {
+    terrain.caves.forEach(c => {
+      const aKey = armorKeys[2 + Math.floor(Math.random() * 3)]; // 고급 방탄복 이상
+      loot.push({ id: idCounter++, x: c.x - 18, y: c.y, category: 'armor', armorId: aKey, name: `${ARMORS[aKey].name} (방어 ${Math.round(ARMORS[aKey].reduce*100)}%)` });
+      loot.push({ id: idCounter++, x: c.x + 22, y: c.y + 10, category: 'ranged', weaponId: 'sniper', name: RANGED_WEAPONS.sniper.name });
+    });
+  }
+
   return loot;
 }
 
@@ -256,35 +388,40 @@ function getRoomList() {
   }));
 }
 
-// 플레이어 변이 좀비 변신 처리 헬퍼
 function turnPlayerIntoMutant(room, p, mSpec) {
   p.isPlayerMutant = true;
   p.bitten = false;
   p.pendingMutation = null;
   p.mutantType = mSpec.type;
   p.mutantName = mSpec.name;
+  p.passiveDesc = mSpec.passiveDesc;
+  p.skillName = mSpec.skillName;
   p.hp = mSpec.hp;
   p.maxHp = mSpec.hp;
   p.speed = mSpec.speed;
   p.radius = mSpec.radius;
   p.dmg = mSpec.dmg;
   p.color = mSpec.color;
-  p.stamina = 100;
-  p.lastDash = 0;
+  p.lastSkill = 0;
   p.dashUntil = 0;
   p.dashAngle = 0;
   p.isDashing = false;
-  io.to(p.id).emit('becameMutant', { name: mSpec.name, hp: mSpec.hp });
-  io.to(room.id).emit('killFeed', `☣️ [변이 완료] '${p.nickname}' 님이 '${mSpec.name}' 변칙 좀비가 되어 생존자를 사냥합니다!`);
+  p.score += 150;
+  io.to(p.id).emit('becameMutant', {
+    name: mSpec.name,
+    hp: mSpec.hp,
+    passiveDesc: mSpec.passiveDesc,
+    skillName: mSpec.skillName
+  });
+  io.to(room.id).emit('killFeed', `☣️ [변이 완료] '${p.nickname}' 님이 '${mSpec.name}' 변칙 좀비가 되었습니다!`);
 }
 
-// 일반 사망 시 즉시 강퇴 및 10분 입장 금지 처리
 function banAndKickPlayer(room, p, reason) {
-  const banUntil = Date.now() + 10 * 60 * 1000; // 10분
+  const banUntil = Date.now() + 10 * 60 * 1000;
   if (p.clientIp) room.bans[p.clientIp] = banUntil;
   if (p.nickname) room.bans['nick:' + p.nickname] = banUntil;
 
-  io.to(room.id).emit('killFeed', `💀 [사망 추방] '${p.nickname}' 님이 사망하여 서버에서 추방되었습니다. (10분간 재입장 불가)`);
+  io.to(room.id).emit('killFeed', `💀 [사망 추방] '${p.nickname}' (점수: ${p.score}점) 사망 추방! (10분간 재입장 금지)`);
   io.to(p.id).emit('kickedAndBanned', reason);
 
   const targetSock = io.sockets.sockets.get(p.id);
@@ -296,12 +433,91 @@ function banAndKickPlayer(room, p, reason) {
   io.emit('roomList', getRoomList());
 }
 
+// 플레이어에게 데미지 적용 (갑옷 방어력 및 브루트 패시브 반영)
+function applyDamageToPlayer(target, rawDmg) {
+  if (target.isPlayerMutant) {
+    // 브루트 패시브: 받는 피해 35% 감소
+    const mult = target.mutantType === 'BRUTE' ? 0.65 : 1.0;
+    target.hp -= Math.round(rawDmg * mult);
+  } else {
+    const reduce = target.armor ? target.armor.reduce : 0;
+    target.hp -= Math.max(1, Math.round(rawDmg * (1 - reduce)));
+  }
+}
+
+// 변칙 좀비 고유 스킬 발동
+function triggerMutantSkill(room, actor, isPlayer, now) {
+  const mType = isPlayer ? actor.mutantType : actor.type;
+  const ang = actor.angle || 0;
+
+  if (mType === 'BRUTE') {
+    // 대지 강타: 반경 175px 충격파 + 광역 피해 + 슬로우 2.5초
+    io.to(room.id).emit('fxEvent', { type: 'shockwave', x: actor.x, y: actor.y, color: '#ef4444' });
+    Object.values(room.players).forEach(t => {
+      if (t.id === actor.id || t.isPlayerMutant) return;
+      if (Math.hypot(t.x - actor.x, t.y - actor.y) <= 175) {
+        applyDamageToPlayer(t, 32);
+        t.slowUntil = now + 2500;
+        io.to(t.id).emit('playerDamaged');
+        if (isPlayer) actor.score += 40;
+      }
+    });
+  } else if (mType === 'STALKER') {
+    // 그림자 도약: 전방 240px 순간 돌진 도약
+    io.to(room.id).emit('fxEvent', { type: 'dash', x: actor.x, y: actor.y });
+    for (let step = 0; step < 12; step++) {
+      const nx = actor.x + Math.cos(ang) * 20;
+      const ny = actor.y + Math.sin(ang) * 20;
+      if (!isBlockedAt(nx, ny, actor.radius, room.buildings, room.terrain)) {
+        actor.x = nx;
+        actor.y = ny;
+      } else break;
+    }
+    io.to(room.id).emit('fxEvent', { type: 'shockwave', x: actor.x, y: actor.y, color: '#a855f7' });
+  } else if (mType === 'ACID') {
+    // 산성액 분사: 전방 140px 위치에 7초간 지속되는 독성 장판 생성
+    const px = actor.x + Math.cos(ang) * 120;
+    const py = actor.y + Math.sin(ang) * 120;
+    room.acidPools.push({
+      id: room.poolIdSeq++,
+      ownerId: actor.id,
+      x: px,
+      y: py,
+      radius: 85,
+      expireAt: now + 7000
+    });
+    io.to(room.id).emit('fxEvent', { type: 'shockwave', x: px, y: py, color: '#84cc16' });
+  } else if (mType === 'SCREAMER') {
+    // 공포의 비명: 반경 260px 생존자 슬로우 + 반경 900px 일반 좀비 집결
+    io.to(room.id).emit('fxEvent', { type: 'shockwave', x: actor.x, y: actor.y, color: '#f59e0b' });
+    Object.values(room.players).forEach(t => {
+      if (t.id === actor.id || t.isPlayerMutant) return;
+      if (Math.hypot(t.x - actor.x, t.y - actor.y) <= 260) {
+        t.slowUntil = now + 3000;
+        io.to(t.id).emit('playerDamaged');
+        io.to(t.id).emit('statusNotice', '😱 스크리머의 괴성에 고막이 울려 이동속도가 느려집니다!');
+      }
+    });
+    room.zombies.forEach(z => {
+      if (!z.isMutant && Math.hypot(z.x - actor.x, z.y - actor.y) < 950) {
+        z.alertTargetPos = { x: actor.x, y: actor.y, until: now + 6000 };
+      }
+    });
+  } else if (mType === 'BOMBER') {
+    // 자폭 점화: 1.2초간 초고속 돌진 후 대폭발
+    actor.dashUntil = now + 1200;
+    actor.dashAngle = ang;
+    actor.bomberIgnited = now + 1200;
+    io.to(room.id).emit('fxEvent', { type: 'dash', x: actor.x, y: actor.y });
+  }
+}
+
 io.on('connection', (socket) => {
   socket.emit('roomList', getRoomList());
 
   socket.on('createRoom', ({ roomName, nickname, spawnInterval, maxPlayers }) => {
     const roomId = 'room_' + Math.random().toString(36).substr(2, 6);
-    const buildings = generateBuildings();
+    const { buildings, terrain } = generateWorldMap();
     rooms[roomId] = {
       id: roomId,
       name: roomName || `${nickname}의 생존 구역`,
@@ -312,13 +528,16 @@ io.on('connection', (socket) => {
       lastLootRefill: Date.now(),
       worldTime: 0.28,
       buildings,
-      loot: spawnBuildingLoot(buildings),
+      terrain,
+      loot: spawnWorldLoot(buildings, terrain),
+      acidPools: [],
       players: {},
       zombies: [],
       bullets: [],
-      bans: {}, // IP 및 닉네임 기반 10분 밴 목록
+      bans: {},
       zombieIdSeq: 1,
-      bulletIdSeq: 1
+      bulletIdSeq: 1,
+      poolIdSeq: 1
     };
     joinRoom(socket, roomId, nickname);
     io.emit('roomList', getRoomList());
@@ -339,9 +558,7 @@ io.on('connection', (socket) => {
 
     if (banExpire > now) {
       const remainSec = Math.ceil((banExpire - now) / 1000);
-      const min = Math.floor(remainSec / 60);
-      const sec = remainSec % 60;
-      sock.emit('joinRejected', `사망 페널티로 인해 이 서버에 입장할 수 없습니다.\n남은 대기 시간: ${min}분 ${sec}초`);
+      sock.emit('joinRejected', `사망 추방 페널티로 입장할 수 없습니다.\n남은 시간: ${Math.floor(remainSec / 60)}분 ${remainSec % 60}초`);
       return;
     }
 
@@ -365,14 +582,20 @@ io.on('connection', (socket) => {
       thirst: 100,
       bitten: false,
       biteTimer: 0,
-      pendingMutation: null, // 감염 타이머 종료 시 선택 대기 상태
-      isPlayerMutant: false, // 변칙 좀비로 플레이 중 여부
+      pendingMutation: null,
+      isPlayerMutant: false,
       mutantType: null,
       mutantName: null,
+      passiveDesc: '',
+      skillName: '',
       speed: 3.2,
       dmg: 14,
       color: '#1d4ed8',
-      lastDash: 0,
+      armor: null,
+      score: 0,
+      kills: 0,
+      slowUntil: 0,
+      lastSkill: 0,
       dashUntil: 0,
       dashAngle: 0,
       isDashing: false,
@@ -383,8 +606,7 @@ io.on('connection', (socket) => {
       inv: { food: 1, water: 1, medkit: 1 },
       lastAttack: 0,
       swingAnim: 0,
-      muzzleFlash: 0,
-      kills: 0
+      muzzleFlash: 0
     };
 
     sock.emit('joinedRoom', {
@@ -392,13 +614,27 @@ io.on('connection', (socket) => {
       playerId: sock.id,
       mapSize: MAP_SIZE,
       buildings: room.buildings,
+      terrain: room.terrain,
       spawnInterval: room.spawnInterval
     });
     io.to(roomId).emit('killFeed', `📡 [투입] 생존자 '${cleanNick}' 님이 구역에 합류했습니다.`);
     io.emit('roomList', getRoomList());
   }
 
-  // 감염 30초 후 선택 응답 처리 ('mutant': 변이좀비로 계속 플레이 / 'leave': 서버 강퇴)
+  // 실시간 채팅 송수신
+  socket.on('chatMessage', (text) => {
+    const room = rooms[socket.roomId];
+    if (!room || !room.players[socket.id]) return;
+    const clean = String(text || '').trim().slice(0, 80);
+    if (!clean) return;
+    const p = room.players[socket.id];
+    io.to(room.id).emit('chatBroadcast', {
+      sender: p.isPlayerMutant ? `🧟${p.nickname}` : p.nickname,
+      isMutant: p.isPlayerMutant,
+      text: clean
+    });
+  });
+
   socket.on('resolveInfectionChoice', (choice) => {
     const room = rooms[socket.roomId];
     if (!room || !room.players[socket.id]) return;
@@ -409,7 +645,6 @@ io.on('connection', (socket) => {
     if (choice === 'mutant') {
       turnPlayerIntoMutant(room, p, mSpec);
     } else {
-      // 강퇴 선택 시 죽은 자리에 AI 변칙 좀비 생성 후 퇴장
       room.zombies.push({
         id: room.zombieIdSeq++,
         isMutant: true,
@@ -431,7 +666,8 @@ io.on('connection', (socket) => {
         lastDash: 0,
         dashUntil: 0,
         dashAngle: 0,
-        isDashing: false
+        isDashing: false,
+        lastSkill: 0
       });
       io.to(room.id).emit('killFeed', `☣️ [변이 경보] '${p.nickname}' 님이 퇴장하고 자리에 '${mSpec.name}' 변칙 좀비가 남았습니다!`);
       io.to(p.id).emit('kickedByInfection', `바이러스 변이로 서버에서 퇴장했습니다.\n죽은 자리에 '${mSpec.name}' 변칙 좀비가 생성되었습니다.`);
@@ -446,36 +682,35 @@ io.on('connection', (socket) => {
     const room = rooms[socket.roomId];
     if (!room || !room.players[socket.id]) return;
     const p = room.players[socket.id];
-    if (p.pendingMutation) return; // 선택 창 떠있는 동안 대기
+    if (p.pendingMutation) return;
 
     const now = Date.now();
     p.angle = data.angle;
+    const inWater = isInWater(p.x, p.y, room.terrain);
+    const slowMult = (now < p.slowUntil ? 0.55 : 1.0) * (inWater ? 0.65 : 1.0);
 
-    // [변칙 좀비로 플레이 중일 때의 조작]
+    // [변칙 좀비로 플레이 중일 때]
     if (p.isPlayerMutant) {
-      // 돌진 스킬 (Shift 또는 R키, 쿨타임 10초)
-      if ((data.sprint || data.reload) && now > p.dashUntil && now - p.lastDash >= 10000) {
-        p.lastDash = now;
-        p.dashUntil = now + 450;
-        p.dashAngle = p.angle;
-        io.to(room.id).emit('fxEvent', { type: 'dash', x: p.x, y: p.y });
+      // 고유 스킬 발동 (E키 또는 R키 또는 Shift, 쿨타임 8초)
+      if ((data.skill || data.reload || data.sprint) && now - p.lastSkill >= 8000) {
+        p.lastSkill = now;
+        triggerMutantSkill(room, p, true, now);
       }
 
       if (now < p.dashUntil) {
         p.isDashing = true;
-        p.vx = Math.cos(p.dashAngle) * (p.speed * 3.0);
-        p.vy = Math.sin(p.dashAngle) * (p.speed * 3.0);
+        p.vx = Math.cos(p.dashAngle) * (p.speed * 2.6);
+        p.vy = Math.sin(p.dashAngle) * (p.speed * 2.6);
       } else {
         p.isDashing = false;
-        p.vx = data.dx * p.speed;
-        p.vy = data.dy * p.speed;
+        p.vx = data.dx * p.speed * slowMult;
+        p.vy = data.dy * p.speed * slowMult;
       }
 
       p.x = Math.max(30, Math.min(MAP_SIZE - 30, p.x + p.vx));
       p.y = Math.max(30, Math.min(MAP_SIZE - 30, p.y + p.vy));
-      resolveWallCollisions(p, p.radius, room.buildings);
+      resolveWorldCollisions(p, p.radius, room.buildings, room.terrain);
 
-      // 생존자 공격 (좌클릭)
       if (data.attack && now - p.lastAttack >= 750) {
         p.lastAttack = now;
         p.swingAnim = 1.0;
@@ -484,14 +719,14 @@ io.on('connection', (socket) => {
         Object.values(room.players).forEach(target => {
           if (target.id === p.id || target.isPlayerMutant) return;
           const dist = Math.hypot(target.x - p.x, target.y - p.y);
-          if (dist <= p.radius + target.radius + 32) {
+          if (dist <= p.radius + target.radius + 34) {
             const angToT = Math.atan2(target.y - p.y, target.x - p.x);
             const diff = Math.abs(Math.atan2(Math.sin(angToT - p.angle), Math.cos(angToT - p.angle)));
             if (diff < 1.2) {
-              const hitDmg = p.isDashing ? Math.round(p.dmg * 1.4) : p.dmg;
-              target.hp -= hitDmg;
+              applyDamageToPlayer(target, p.dmg);
+              p.score += 35;
               io.to(target.id).emit('playerDamaged');
-              io.to(room.id).emit('fxEvent', { type: 'blood', x: target.x, y: target.y, dmg: hitDmg, killerId: p.id });
+              io.to(room.id).emit('fxEvent', { type: 'blood', x: target.x, y: target.y, dmg: p.dmg, killerId: p.id });
 
               if (!target.bitten && Math.random() < 0.25) {
                 target.bitten = true;
@@ -509,7 +744,7 @@ io.on('connection', (socket) => {
     // [일반 생존자 조작]
     const isMoving = data.dx !== 0 || data.dy !== 0;
     const isSprinting = data.sprint && p.stamina > 5 && isMoving;
-    const speed = isSprinting ? 5.6 : 3.2;
+    const speed = (isSprinting ? 5.6 : 3.2) * slowMult;
 
     if (isSprinting) {
       p.stamina = Math.max(0, p.stamina - 0.35);
@@ -521,7 +756,7 @@ io.on('connection', (socket) => {
     p.vy = data.dy * speed;
     p.x = Math.max(30, Math.min(MAP_SIZE - 30, p.x + p.vx));
     p.y = Math.max(30, Math.min(MAP_SIZE - 30, p.y + p.vy));
-    resolveWallCollisions(p, 18, room.buildings);
+    resolveWorldCollisions(p, 18, room.buildings, room.terrain);
 
     if (data.slot === 'melee') p.activeSlot = 'melee';
     if (data.slot === 'ranged' && p.ranged) p.activeSlot = 'ranged';
@@ -539,16 +774,19 @@ io.on('connection', (socket) => {
     if (data.useItem === 'food' && p.inv.food > 0) {
       p.inv.food--;
       p.hunger = Math.min(100, p.hunger + 40);
+      p.score += 10;
       io.to(p.id).emit('sfx', 'consume');
     }
     if (data.useItem === 'water' && p.inv.water > 0) {
       p.inv.water--;
       p.thirst = Math.min(100, p.thirst + 45);
+      p.score += 10;
       io.to(p.id).emit('sfx', 'consume');
     }
     if (data.useItem === 'medkit' && p.inv.medkit > 0) {
       p.inv.medkit--;
       p.hp = Math.min(100, p.hp + 60);
+      p.score += 15;
       io.to(p.id).emit('sfx', 'heal');
     }
 
@@ -560,7 +798,10 @@ io.on('connection', (socket) => {
           else if (item.category === 'water') p.inv.water++;
           else if (item.category === 'medkit') p.inv.medkit++;
           else if (item.category === 'ammo') p.reserveAmmo += item.amount;
-          else if (item.category === 'melee') {
+          else if (item.category === 'armor') {
+            p.armor = ARMORS[item.armorId];
+            p.score += 80;
+          } else if (item.category === 'melee') {
             p.melee = MELEE_WEAPONS[item.weaponId];
             p.activeSlot = 'melee';
           } else if (item.category === 'ranged') {
@@ -568,6 +809,7 @@ io.on('connection', (socket) => {
             p.ranged = { ...w, currentMag: w.magSize };
             p.activeSlot = 'ranged';
           }
+          p.score += 15;
           io.to(p.id).emit('sfx', 'pickup');
           io.to(p.id).emit('statusNotice', `[획득] ${item.name}`);
           room.loot.splice(i, 1);
@@ -585,7 +827,6 @@ io.on('connection', (socket) => {
           p.stamina -= w.stam;
           io.to(room.id).emit('fxEvent', { type: 'melee', x: p.x, y: p.y, angle: p.angle });
 
-          // AI 좀비 타격 (넉백 제거됨!)
           room.zombies.forEach(z => {
             const dist = Math.hypot(z.x - p.x, z.y - p.y);
             if (dist <= w.range + z.radius) {
@@ -594,12 +835,14 @@ io.on('connection', (socket) => {
               if (diff < 1.15) {
                 z.hp -= w.dmg;
                 io.to(room.id).emit('fxEvent', { type: 'blood', x: z.x, y: z.y, dmg: w.dmg, killerId: p.id });
-                if (z.hp <= 0) p.kills++;
+                if (z.hp <= 0) {
+                  p.kills++;
+                  p.score += z.isMutant ? 250 : 30;
+                }
               }
             }
           });
 
-          // 변이 플레이어 타격 (넉백 제거됨!)
           Object.values(room.players).forEach(mp => {
             if (!mp.isPlayerMutant || mp.id === p.id) return;
             const dist = Math.hypot(mp.x - p.x, mp.y - p.y);
@@ -607,9 +850,13 @@ io.on('connection', (socket) => {
               const angToM = Math.atan2(mp.y - p.y, mp.x - p.x);
               const diff = Math.abs(Math.atan2(Math.sin(angToM - p.angle), Math.cos(angToM - p.angle)));
               if (diff < 1.15) {
-                mp.hp -= w.dmg;
+                applyDamageToPlayer(mp, w.dmg);
                 io.to(mp.id).emit('playerDamaged');
                 io.to(room.id).emit('fxEvent', { type: 'blood', x: mp.x, y: mp.y, dmg: w.dmg, killerId: p.id });
+                if (mp.hp <= 0) {
+                  p.kills++;
+                  p.score += 300;
+                }
               }
             }
           });
@@ -661,7 +908,7 @@ setInterval(() => {
 
     room.worldTime = (room.worldTime + 0.0002) % 1;
 
-    // 방장 설정 주기마다 기본 좀비 스폰 (이속 3.45~3.85: 플레이어 기본 걷기 3.2보다 살짝 빠름)
+    // 1. 기본 좀비 주기적 스폰
     if (now - room.lastZombieSpawn >= room.spawnInterval * 1000 && room.zombies.length < 150) {
       room.lastZombieSpawn = now;
       const humanPlayers = playerList.filter(pl => !pl.isPlayerMutant);
@@ -671,6 +918,7 @@ setInterval(() => {
           const dist = 620 + Math.random() * 480;
           const zx = Math.max(50, Math.min(MAP_SIZE - 50, p.x + Math.cos(ang) * dist));
           const zy = Math.max(50, Math.min(MAP_SIZE - 50, p.y + Math.sin(ang) * dist));
+          if (isBlockedAt(zx, zy, 18, room.buildings, room.terrain)) continue;
           room.zombies.push({
             id: room.zombieIdSeq++,
             isMutant: false,
@@ -692,29 +940,64 @@ setInterval(() => {
             lastDash: 0,
             dashUntil: 0,
             dashAngle: 0,
-            isDashing: false
+            isDashing: false,
+            lastSkill: 0
           });
         }
       });
     }
 
-    // 생존 게이지, 감염 선택 판정, 일반 사망 시 즉시 강퇴 + 10분 밴
+    // 2. 독성 장판 처리
+    for (let i = room.acidPools.length - 1; i >= 0; i--) {
+      const pool = room.acidPools[i];
+      if (now >= pool.expireAt) {
+        room.acidPools.splice(i, 1);
+        continue;
+      }
+      playerList.forEach(p => {
+        if (p.isPlayerMutant) return;
+        if (Math.hypot(p.x - pool.x, p.y - pool.y) <= pool.radius) {
+          p.hp -= 0.45;
+        }
+      });
+    }
+
+    // 3. 플레이어 상태, 생존 스코어, 패시브 오라, 감염 선택 처리
     playerList.forEach(p => {
       p.swingAnim = Math.max(0, p.swingAnim - 0.16);
       p.muzzleFlash = Math.max(0, p.muzzleFlash - 0.25);
 
+      // 변이 플레이어 상태
       if (p.isPlayerMutant) {
+        // 보머 자폭 점화 만료 시 대폭발
+        if (p.bomberIgnited && now >= p.bomberIgnited) {
+          p.bomberIgnited = 0;
+          io.to(room.id).emit('fxEvent', { type: 'explosion', x: p.x, y: p.y });
+          playerList.forEach(t => {
+            if (!t.isPlayerMutant && Math.hypot(t.x - p.x, t.y - p.y) < 170) {
+              applyDamageToPlayer(t, 65);
+              p.score += 100;
+            }
+          });
+          p.hp = 0;
+        }
+
+        // 애시드 패시브: 주변 85px 생존자 지속 독 피해
+        if (p.mutantType === 'ACID') {
+          playerList.forEach(t => {
+            if (!t.isPlayerMutant && Math.hypot(t.x - p.x, t.y - p.y) < 85) {
+              t.hp -= 0.35;
+            }
+          });
+        }
+
         if (p.hp <= 0) {
-          if (p.mutantType === 'BOMBER') {
-            io.to(room.id).emit('fxEvent', { type: 'explosion', x: p.x, y: p.y });
-          }
           banAndKickPlayer(room, p, `변이 좀비('${p.mutantName}') 상태로 사살되었습니다.\n이 서버에 10분 동안 재입장할 수 없습니다.`);
         }
         return;
       }
 
       if (p.pendingMutation) {
-        // 선택 제한시간(10초) 초과 시 자동 강퇴 처리
         if (now >= p.pendingMutationExpire) {
           const mSpec = p.pendingMutation;
           room.zombies.push({
@@ -738,7 +1021,8 @@ setInterval(() => {
             lastDash: 0,
             dashUntil: 0,
             dashAngle: 0,
-            isDashing: false
+            isDashing: false,
+            lastSkill: 0
           });
           io.to(p.id).emit('kickedByInfection', `선택 시간이 초과되어 변이 사망 처리되었습니다.`);
           const targetSock = io.sockets.sockets.get(p.id);
@@ -749,19 +1033,21 @@ setInterval(() => {
         return;
       }
 
+      // 생존 시간 보너스 점수 (초당 +1점)
+      p.score += 0.05;
       p.hunger = Math.max(0, p.hunger - 0.035);
       p.thirst = Math.max(0, p.thirst - 0.05);
       if (p.hunger === 0 || p.thirst === 0) {
         p.hp = Math.max(0, p.hp - 0.12);
       }
 
-      // 물림 타이머 (30초)
       if (p.bitten) {
         p.biteTimer -= 0.05;
         if (p.biteTimer <= 0) {
           p.bitten = false;
           if (Math.random() < 0.5) {
-            io.to(p.id).emit('statusNotice', '💉 면역 항체 활성화! 바이러스를 자연 극복했습니다.');
+            p.score += 100;
+            io.to(p.id).emit('statusNotice', '💉 면역 항체 활성화! 바이러스를 자연 극복했습니다. (+100점)');
             io.to(room.id).emit('killFeed', `🧬 '${p.nickname}' 님이 좀비 바이러스를 자연 극복했습니다.`);
           } else {
             const mSpec = MUTANT_TYPES[Math.floor(Math.random() * MUTANT_TYPES.length)];
@@ -769,20 +1055,21 @@ setInterval(() => {
             p.pendingMutationExpire = now + 10000;
             io.to(p.id).emit('infectionChoicePrompt', {
               mutantName: mSpec.name,
-              mutantHp: mSpec.hp
+              mutantHp: mSpec.hp,
+              passiveDesc: mSpec.passiveDesc,
+              skillName: mSpec.skillName
             });
             return;
           }
         }
       }
 
-      // 감염이 아닌 일반 사망(HP <= 0) -> 즉시 강퇴 및 해당 서버 10분 입장 금지
       if (p.hp <= 0 && room.players[p.id]) {
-        banAndKickPlayer(room, p, `생존에 실패하여 사망했습니다.\n해당 서버에서 강퇴되며 10분 동안 재입장할 수 없습니다.`);
+        banAndKickPlayer(room, p, `생존에 실패하여 사망했습니다. (최종 점수: ${Math.floor(p.score)}점)\n해당 서버에서 강퇴되며 10분 동안 재입장할 수 없습니다.`);
       }
     });
 
-    // 총알 이동 및 충돌 (AI 좀비 + 변이 플레이어 모두 피격 가능)
+    // 4. 총알 충돌 판정
     for (let i = room.bullets.length - 1; i >= 0; i--) {
       const b = room.bullets[i];
       b.x += b.vx;
@@ -790,27 +1077,20 @@ setInterval(() => {
       b.life--;
       let hit = false;
 
-      for (let bd of room.buildings) {
-        if (b.x > bd.x && b.x < bd.x + bd.w && b.y > bd.y && b.y < bd.y + bd.h) {
-          for (let w of bd.walls) {
-            if (b.x > w.x && b.x < w.x + w.w && b.y > w.y && b.y < w.y + w.h) {
-              hit = true;
-              break;
-            }
-          }
-        }
-        if (hit) break;
-      }
+      if (isBlockedAt(b.x, b.y, 4, room.buildings, room.terrain)) hit = true;
 
       if (!hit) {
         for (let j = 0; j < room.zombies.length; j++) {
           const z = room.zombies[j];
           if (Math.hypot(b.x - z.x, b.y - z.y) <= z.radius + 6) {
-            z.hp -= b.dmg;
+            const dmgMult = z.type === 'BRUTE' ? 0.65 : 1.0; // 브루트 패시브
+            const finalDmg = Math.max(1, Math.round(b.dmg * dmgMult));
+            z.hp -= finalDmg;
             hit = true;
-            io.to(room.id).emit('fxEvent', { type: 'blood', x: z.x, y: z.y, dmg: b.dmg, killerId: b.ownerId });
+            io.to(room.id).emit('fxEvent', { type: 'blood', x: z.x, y: z.y, dmg: finalDmg, killerId: b.ownerId });
             if (z.hp <= 0 && room.players[b.ownerId]) {
               room.players[b.ownerId].kills++;
+              room.players[b.ownerId].score += z.isMutant ? 250 : 30;
               if (z.isMutant) {
                 io.to(room.id).emit('killFeed', `🔥 '${b.ownerName}' 님이 변칙 좀비 '${z.name}'을(를) 사살했습니다!`);
               }
@@ -824,12 +1104,13 @@ setInterval(() => {
         for (const mp of Object.values(room.players)) {
           if (!mp.isPlayerMutant || mp.id === b.ownerId) continue;
           if (Math.hypot(b.x - mp.x, b.y - mp.y) <= mp.radius + 6) {
-            mp.hp -= b.dmg;
+            applyDamageToPlayer(mp, b.dmg);
             hit = true;
             io.to(mp.id).emit('playerDamaged');
             io.to(room.id).emit('fxEvent', { type: 'blood', x: mp.x, y: mp.y, dmg: b.dmg, killerId: b.ownerId });
             if (mp.hp <= 0 && room.players[b.ownerId]) {
               room.players[b.ownerId].kills++;
+              room.players[b.ownerId].score += 300;
               io.to(room.id).emit('killFeed', `🔥 '${b.ownerName}' 님이 변이체 '${mp.nickname}'을(를) 사살했습니다!`);
             }
             break;
@@ -840,15 +1121,15 @@ setInterval(() => {
       if (hit || b.life <= 0) room.bullets.splice(i, 1);
     }
 
-    // 좀비 AI: 평상시 무작위 배회 -> 근접 시 길찾기 추적 -> 중거리 10초 쿨타임 돌진
+    // 5. AI 좀비 이동, 스마트 길찾기, 고유 패시브 및 스킬
     for (let i = room.zombies.length - 1; i >= 0; i--) {
       const z = room.zombies[i];
-      if (z.hp <= 0) {
+      if (z.hp <= 0 || (z.bomberIgnited && now >= z.bomberIgnited)) {
         if (z.type === 'BOMBER') {
           io.to(room.id).emit('fxEvent', { type: 'explosion', x: z.x, y: z.y });
           playerList.forEach(p => {
-            if (!p.isPlayerMutant && Math.hypot(p.x - z.x, p.y - z.y) < 145) {
-              p.hp -= 45;
+            if (!p.isPlayerMutant && Math.hypot(p.x - z.x, p.y - z.y) < 165) {
+              applyDamageToPlayer(p, 55);
               if (!p.bitten && Math.random() < 0.3) {
                 p.bitten = true;
                 p.biteTimer = 30;
@@ -860,7 +1141,22 @@ setInterval(() => {
         continue;
       }
 
-      // 변이 플레이어를 제외한 생존자 중 가장 가까운 타겟 탐색
+      // 애시드 패시브: 주변 80px 생존자 지속 부식
+      if (z.type === 'ACID') {
+        playerList.forEach(p => {
+          if (!p.isPlayerMutant && Math.hypot(p.x - z.x, p.y - z.y) < 80) {
+            p.hp -= 0.3;
+          }
+        });
+      }
+
+      // 스크리머 패시브 버프 확인
+      let speedBuff = 1.0;
+      if (!z.isMutant) {
+        const hasScreamer = room.zombies.some(sz => sz.type === 'SCREAMER' && Math.hypot(sz.x - z.x, sz.y - z.y) < 320);
+        if (hasScreamer) speedBuff = 1.3;
+      }
+
       let target = null;
       let minDist = Infinity;
       playerList.forEach(p => {
@@ -872,15 +1168,22 @@ setInterval(() => {
         }
       });
 
-      const detectRange = z.isMutant ? 560 : 440;
+      const detectRange = z.isMutant ? 580 : 440;
+      const inWater = isInWater(z.x, z.y, room.terrain);
+      const envSpeedMult = (inWater ? 0.65 : 1.0) * speedBuff;
 
       if (target && minDist < detectRange) {
-        // 스마트 길찾기 각도 산출 (벽 장애물 우회)
-        const smartAng = findSmartPathAngle(z, target.x, target.y, room.buildings);
+        const smartAng = findSmartPathAngle(z, target.x, target.y, room.buildings, room.terrain);
         z.angle = smartAng;
 
-        // 쿨타임 10초 돌진 스킬
-        if (now > z.dashUntil && now - z.lastDash >= 10000 && minDist > 130 && minDist < 360) {
+        // 변칙 좀비 고유 스킬 사용 (쿨타임 9초)
+        if (z.isMutant && now - (z.lastSkill || 0) >= 9000 && minDist < 320) {
+          z.lastSkill = now;
+          triggerMutantSkill(room, z, false, now);
+        }
+
+        // 일반 좀비 쿨타임 10초 돌진
+        if (!z.isMutant && now > z.dashUntil && now - z.lastDash >= 10000 && minDist > 130 && minDist < 360) {
           z.lastDash = now;
           z.dashUntil = now + 450;
           z.dashAngle = smartAng;
@@ -890,20 +1193,20 @@ setInterval(() => {
         if (now < z.dashUntil) {
           z.isDashing = true;
           z.angle = z.dashAngle;
-          z.x += Math.cos(z.dashAngle) * (z.speed * 3.1);
-          z.y += Math.sin(z.dashAngle) * (z.speed * 3.1);
+          z.x += Math.cos(z.dashAngle) * (z.speed * 3.0);
+          z.y += Math.sin(z.dashAngle) * (z.speed * 3.0);
         } else {
           z.isDashing = false;
-          z.x += Math.cos(smartAng) * z.speed;
-          z.y += Math.sin(smartAng) * z.speed;
+          z.x += Math.cos(smartAng) * z.speed * envSpeedMult;
+          z.y += Math.sin(smartAng) * z.speed * envSpeedMult;
         }
 
-        resolveWallCollisions(z, z.radius, room.buildings);
+        resolveWorldCollisions(z, z.radius, room.buildings, room.terrain);
 
         if (minDist <= z.radius + 19 && now - z.lastHit >= 1000) {
           z.lastHit = now;
           const hitDmg = z.isDashing ? Math.round(z.dmg * 1.4) : z.dmg;
-          target.hp -= hitDmg;
+          applyDamageToPlayer(target, hitDmg);
           io.to(target.id).emit('playerDamaged');
 
           if (!target.bitten && Math.random() < 0.10) {
@@ -913,13 +1216,19 @@ setInterval(() => {
             io.to(room.id).emit('killFeed', `🩸 경고! '${target.nickname}' 님이 좀비에게 물렸습니다! (발병 30초 전)`);
           }
         }
+      } else if (z.alertTargetPos && now < z.alertTargetPos.until) {
+        // 스크리머 비명 소집 위치로 이동
+        const ang = findSmartPathAngle(z, z.alertTargetPos.x, z.alertTargetPos.y, room.buildings, room.terrain);
+        z.angle = ang;
+        z.x += Math.cos(ang) * z.speed * envSpeedMult;
+        z.y += Math.sin(ang) * z.speed * envSpeedMult;
+        resolveWorldCollisions(z, z.radius, room.buildings, room.terrain);
       } else {
-        // 평상시 무작위 배회 (벽을 만나면 자연스럽게 방향 전환)
         z.isDashing = false;
         const lookAhead = z.radius + 25;
         if (
           now >= z.nextWanderChange ||
-          isBlockedAt(z.x + Math.cos(z.wanderAngle) * lookAhead, z.y + Math.sin(z.wanderAngle) * lookAhead, z.radius, room.buildings)
+          isBlockedAt(z.x + Math.cos(z.wanderAngle) * lookAhead, z.y + Math.sin(z.wanderAngle) * lookAhead, z.radius, room.buildings, room.terrain)
         ) {
           z.wanderAngle = Math.random() * Math.PI * 2;
           z.nextWanderChange = now + 1800 + Math.random() * 2600;
@@ -928,21 +1237,29 @@ setInterval(() => {
         const wanderSpeed = z.speed * 0.35;
         z.x = Math.max(40, Math.min(MAP_SIZE - 40, z.x + Math.cos(z.wanderAngle) * wanderSpeed));
         z.y = Math.max(40, Math.min(MAP_SIZE - 40, z.y + Math.sin(z.wanderAngle) * wanderSpeed));
-        resolveWallCollisions(z, z.radius, room.buildings);
+        resolveWorldCollisions(z, z.radius, room.buildings, room.terrain);
       }
     }
 
-    if (now - room.lastLootRefill >= 90000 && room.loot.length < 75) {
+    if (now - room.lastLootRefill >= 90000 && room.loot.length < 80) {
       room.lastLootRefill = now;
-      room.loot.push(...spawnBuildingLoot(room.buildings).slice(0, 35));
+      room.loot.push(...spawnWorldLoot(room.buildings, room.terrain).slice(0, 35));
     }
+
+    // 실시간 TOP 5 스코어 랭킹 계산
+    const leaderboard = playerList
+      .map(pl => ({ id: pl.id, nickname: pl.nickname, score: Math.floor(pl.score), kills: pl.kills, isMutant: pl.isPlayerMutant }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
 
     io.to(room.id).emit('worldState', {
       worldTime: room.worldTime,
       players: room.players,
       zombies: room.zombies,
       bullets: room.bullets,
-      loot: room.loot
+      loot: room.loot,
+      acidPools: room.acidPools,
+      leaderboard
     });
   });
 }, 50);
