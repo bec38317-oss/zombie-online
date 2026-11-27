@@ -11,7 +11,7 @@
     <div class="lobby-box">
       <div class="badge">ULTRA HD MULTIPLAYER SURVIVAL</div>
       <h1>DEAD ZONE : OUTBREAK</h1>
-      <p class="subtitle">6000×6000 심리스 오픈월드 · 15종 무기 · 5종 변칙 감염 시스템</p>
+      <p class="subtitle">6000×6000 오픈월드 · 무기 15종 · 방탄복 5종 · 5종 변칙 감염</p>
 
       <div class="nick-row">
         <input type="text" id="nickname" placeholder="생존자 콜사인(닉네임) 입력..." maxlength="12" />
@@ -43,7 +43,7 @@
 
   <!-- 감염 발병 시 운명 선택 팝업 -->
   <div id="mutationModal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.86); z-index:200; display:flex; align-items:center; justify-content:center;">
-    <div style="background:#181012; border:2px solid #ef4444; border-radius:14px; padding:32px; max-width:460px; text-align:center; box-shadow:0 0 50px rgba(239,68,68,0.5);">
+    <div style="background:#181012; border:2px solid #ef4444; border-radius:14px; padding:32px; max-width:480px; text-align:center; box-shadow:0 0 50px rgba(239,68,68,0.5);">
       <div style="color:#f87171; font-size:13px; font-weight:bold; letter-spacing:1.5px; margin-bottom:8px;">☣️ VIRUS MUTATION CRITICAL</div>
       <h2 style="color:#fff; font-size:24px; margin-bottom:12px;">바이러스 변이가 시작되었습니다!</h2>
       <p id="mutationDesc" style="color:#d1d5db; font-size:14px; line-height:1.6; margin-bottom:24px;"></p>
@@ -69,13 +69,26 @@
   <div id="hud" class="hidden">
     <div class="top-left-info">
       <div id="timeDisplay">☀️ 주간 06:00</div>
-      <div id="coordDisplay">좌표: 3000, 3000 | 사살: 0</div>
+      <div id="coordDisplay">좌표: 3000, 3000 | 점수: 0 | 사살: 0</div>
+      <div id="armorDisplay">🛡️ 방어구: 없음 (피해감소 0%)</div>
       <div id="controlsHelp" class="controls-help">
-        <b>WASD</b> 이동 · <b>Shift</b> 달리기 · <b>좌클릭</b> 공격 · <b>R</b> 장전 · <b>F</b> 건물 파밍 · <b>1~5</b> 장비/생존품
+        <b>WASD</b> 이동 · <b>Shift</b> 달리기 · <b>좌클릭</b> 공격 · <b>R</b> 장전 · <b>F</b> 파밍 · <b>Enter</b> 채팅
       </div>
     </div>
 
+    <!-- 실시간 스코어 & TOP 5 랭킹 보드 -->
+    <div id="rankingBox">
+      <div class="rank-title">🏆 생존자 랭킹 (SCORE)</div>
+      <div id="rankingList"></div>
+    </div>
+
     <div id="killFeed"></div>
+
+    <!-- 실시간 멀티플레이 채팅창 -->
+    <div id="chatBox">
+      <div id="chatMessages"></div>
+      <input type="text" id="chatInput" placeholder="Enter 키를 눌러 채팅 입력..." maxlength="80" />
+    </div>
 
     <div class="bars">
       <div class="bar-wrap"><span>HP</span><div class="bar"><div id="hpBar" class="fill hp"></div></div><b id="hpVal">100</b></div>
