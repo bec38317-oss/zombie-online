@@ -28,16 +28,16 @@ const MELEE_WEAPONS = {
   chainsaw: { id: 'chainsaw', name: '엔진 전기톱',   dmg: 32,  range: 78,  cd: 110, stam: 2.5, color: '#f57f17' }
 };
 
-// 원거리 무기 5종
+// 원거리 무기 5종 (장전 시간 및 탄피 장전 여부 포함)
 const RANGED_WEAPONS = {
-  pistol:  { id: 'pistol',  name: 'G17 9mm 권총',  dmg: 34,  magSize: 15, cd: 270,  speed: 23, spread: 0.03,  pellets: 1 },
-  shotgun: { id: 'shotgun', name: 'M870 펌프샷건', dmg: 26,  magSize: 6,  cd: 820,  speed: 19, spread: 0.24,  pellets: 6 },
-  smg:     { id: 'smg',     name: 'MP5 기관단총',  dmg: 25,  magSize: 30, cd: 95,   speed: 24, spread: 0.08,  pellets: 1 },
-  ar:      { id: 'ar',      name: 'M4A1 돌격소총', dmg: 44,  magSize: 30, cd: 145,  speed: 28, spread: 0.04,  pellets: 1 },
-  sniper:  { id: 'sniper',  name: 'AWM 저격소총',  dmg: 165, magSize: 5,  cd: 1150, speed: 38, spread: 0.005, pellets: 1 }
+  pistol:  { id: 'pistol',  name: 'G17 9mm 권총',  dmg: 34,  magSize: 15, cd: 270,  speed: 23, spread: 0.03,  pellets: 1, reloadTime: 1200, shellReload: false },
+  shotgun: { id: 'shotgun', name: 'M870 펌프샷건', dmg: 26,  magSize: 6,  cd: 820,  speed: 19, spread: 0.24,  pellets: 6, reloadTime: 1900, shellReload: true },
+  smg:     { id: 'smg',     name: 'MP5 기관단총',  dmg: 25,  magSize: 30, cd: 95,   speed: 24, spread: 0.08,  pellets: 1, reloadTime: 1400, shellReload: false },
+  ar:      { id: 'ar',      name: 'M4A1 돌격소총', dmg: 44,  magSize: 30, cd: 145,  speed: 28, spread: 0.04,  pellets: 1, reloadTime: 1600, shellReload: false },
+  sniper:  { id: 'sniper',  name: 'AWM 저격소총',  dmg: 165, magSize: 5,  cd: 1150, speed: 38, spread: 0.005, pellets: 1, reloadTime: 2100, shellReload: false }
 };
 
-// 갑옷 5종 (매우 낮은 확률로 건물에서 드랍)
+// 갑옷 5종
 const ARMORS = {
   leather:    { id: 'leather',    name: '가죽 자켓',       reduce: 0.15, color: '#78350f', tier: 1 },
   police:     { id: 'police',     name: '경찰 방탄복',     reduce: 0.30, color: '#1e3a8a', tier: 2 },
@@ -46,7 +46,14 @@ const ARMORS = {
   juggernaut: { id: 'juggernaut', name: '저거너트 중장갑', reduce: 0.75, color: '#b91c1c', tier: 5 }
 };
 
-// 변칙 좀비 5종 (고유 패시브 + 고유 액티브 스킬)
+// 일반 좀비 3종
+const NORMAL_ZOMBIES = [
+  { type: 'WALKER', name: '워커',      hp: 80,  speed: 3.45, radius: 18, dmg: 14, color: '#386641' },
+  { type: 'RUNNER', name: '러너',      hp: 55,  speed: 4.35, radius: 16, dmg: 11, color: '#991b1b' },
+  { type: 'TANKER', name: '떡대 좀비', hp: 175, speed: 2.85, radius: 24, dmg: 22, color: '#3f6212' }
+];
+
+// 변칙 좀비 5종
 const MUTANT_TYPES = [
   {
     type: 'BRUTE', name: '브루트 (거대 육괴)', hp: 580, speed: 3.35, radius: 44, dmg: 38, color: '#590d22',
@@ -72,17 +79,16 @@ const MUTANT_TYPES = [
 
 const rooms = {};
 
-// 겹치지 않는 지형지물 (강/다리, 숲, 바위산, 동굴) + 건물 생성
 function generateWorldMap() {
   const buildings = [];
   const terrain = {
-    rivers: [],    // 강줄기 및 다리
-    mountains: [], // 바위산 (충돌 있음)
-    forests: [],   // 울창한 숲 (이동 가능, 나무 디테일)
-    caves: []      // 동굴 (진입 가능, 희귀 전리품)
+    rivers: [],
+    mountains: [],
+    forests: [],
+    caves: []
   };
 
-  // 1. 강줄기 2개 생성 (가로 강 + 세로 강 교차, 다리 포함)
+  // 강줄기 2개 및 나무 다리
   terrain.rivers.push({
     x: 0, y: 1650, w: MAP_SIZE, h: 150, horizontal: true,
     bridges: [1100, 3000, 4800]
@@ -93,9 +99,9 @@ function generateWorldMap() {
   });
 
   const occupiedRects = [
-    { x: 2720, y: 2720, w: 560, h: 560 }, // 중앙 안전 광장
-    { x: 0, y: 1580, w: MAP_SIZE, h: 290 }, // 가로 강 주변 여백
-    { x: 4180, y: 0, w: 290, h: MAP_SIZE }  // 세로 강 주변 여백
+    { x: 2720, y: 2720, w: 560, h: 560 },
+    { x: 0, y: 1580, w: MAP_SIZE, h: 290 },
+    { x: 4180, y: 0, w: 290, h: MAP_SIZE }
   ];
 
   function canPlaceRect(x, y, w, h, pad = 110) {
@@ -108,7 +114,6 @@ function generateWorldMap() {
     return true;
   }
 
-  // 2. 거대 바위산 14개 배치
   let tries = 0;
   while (terrain.mountains.length < 14 && tries < 1000) {
     tries++;
@@ -121,7 +126,6 @@ function generateWorldMap() {
     }
   }
 
-  // 3. 어두운 동굴 8개 배치
   tries = 0;
   while (terrain.caves.length < 8 && tries < 1000) {
     tries++;
@@ -134,7 +138,6 @@ function generateWorldMap() {
     }
   }
 
-  // 4. 울창한 숲 군락 18개 배치
   tries = 0;
   while (terrain.forests.length < 18 && tries < 1000) {
     tries++;
@@ -153,15 +156,15 @@ function generateWorldMap() {
     }
   }
 
-  // 5. 겹치지 않는 고디테일 건물 42채 배치
-  const types = ['민가', '편의점', '종합병원', '경찰서', '군수창고'];
+  // 현실적으로 구분되는 6종 도시 건물 배치
+  const types = ['종합병원', '경찰서', '24시 편의점', '총포상', '주유소', '주거 아파트'];
   const WALL_T = 16;
   const DOOR_W = 88;
   tries = 0;
   while (buildings.length < 42 && tries < 3000) {
     tries++;
-    const w = 350 + Math.floor(Math.random() * 170);
-    const h = 290 + Math.floor(Math.random() * 150);
+    const w = 360 + Math.floor(Math.random() * 160);
+    const h = 300 + Math.floor(Math.random() * 140);
     const x = 300 + Math.floor(Math.random() * (MAP_SIZE - w - 600));
     const y = 300 + Math.floor(Math.random() * (MAP_SIZE - h - 600));
 
@@ -199,8 +202,46 @@ function generateWorldMap() {
   return { buildings, terrain };
 }
 
-function resolveWorldCollisions(entity, radius, buildings, terrain) {
-  // 건물 벽 충돌
+function circleOBBDistanceInfo(cx, cy, obb) {
+  const cos = Math.cos(-obb.angle);
+  const sin = Math.sin(-obb.angle);
+  const dx = cx - obb.x;
+  const dy = cy - obb.y;
+  const lx = dx * cos - dy * sin;
+  const ly = dx * sin + dy * cos;
+  const hw = obb.w / 2, hh = obb.h / 2;
+  const clx = Math.max(-hw, Math.min(lx, hw));
+  const cly = Math.max(-hh, Math.min(ly, hh));
+  const dlx = lx - clx;
+  const dly = ly - cly;
+  const dist = Math.hypot(dlx, dly);
+  return { lx, ly, clx, cly, dlx, dly, dist, hw, hh };
+}
+
+function resolveCircleOBB(ent, obb, radius) {
+  const info = circleOBBDistanceInfo(ent.x, ent.y, obb);
+  if (info.dist < radius) {
+    let nLx = 0, nLy = 0, overlap = 0;
+    if (info.dist > 0.0001) {
+      nLx = info.dlx / info.dist;
+      nLy = info.dly / info.dist;
+      overlap = radius - info.dist;
+    } else {
+      const px = info.hw - Math.abs(info.lx);
+      const py = info.hh - Math.abs(info.ly);
+      if (px < py) { nLx = info.lx >= 0 ? 1 : -1; overlap = px + radius; }
+      else { nLy = info.ly >= 0 ? 1 : -1; overlap = py + radius; }
+    }
+    const cos = Math.cos(obb.angle);
+    const sin = Math.sin(obb.angle);
+    ent.x += (nLx * cos - nLy * sin) * overlap;
+    ent.y += (nLx * sin + nLy * cos) * overlap;
+    return true;
+  }
+  return false;
+}
+
+function resolveWorldCollisions(entity, radius, buildings, terrain, barricades = []) {
   for (let b of buildings) {
     if (entity.x + radius < b.x || entity.x - radius > b.x + b.w || entity.y + radius < b.y || entity.y - radius > b.y + b.h) continue;
     for (let w of b.walls) {
@@ -217,7 +258,6 @@ function resolveWorldCollisions(entity, radius, buildings, terrain) {
       }
     }
   }
-  // 바위산 원형 충돌
   if (terrain && terrain.mountains) {
     for (let m of terrain.mountains) {
       const dx = entity.x - m.x;
@@ -231,6 +271,9 @@ function resolveWorldCollisions(entity, radius, buildings, terrain) {
         entity.y += (dy / dist) * overlap;
       }
     }
+  }
+  for (let bar of barricades) {
+    resolveCircleOBB(entity, bar, radius);
   }
 }
 
@@ -272,6 +315,13 @@ function isBlockedAt(px, py, radius, buildings, terrain) {
   return false;
 }
 
+function isInsideBuildingBox(px, py, pad, buildings) {
+  for (let b of buildings) {
+    if (px >= b.x - pad && px <= b.x + b.w + pad && py >= b.y - pad && py <= b.y + b.h + pad) return true;
+  }
+  return false;
+}
+
 function findSmartPathAngle(z, targetX, targetY, buildings, terrain) {
   const desiredAngle = Math.atan2(targetY - z.y, targetX - z.x);
   const lookAhead = z.radius + 36;
@@ -309,7 +359,27 @@ function findSmartPathAngle(z, targetX, targetY, buildings, terrain) {
   return bestAngle;
 }
 
-// 건물 + 동굴 파밍 아이템 생성 (갑옷 5종 극악 확률 포함)
+// 거리에 떨어져 있는 나무 더미 생성
+function spawnStreetWood(buildings, terrain, count = 45) {
+  const woodDrops = [];
+  let seq = 1;
+  // 시작 지점 근처에도 나무 3개 배치
+  woodDrops.push({ id: seq++, x: 2940, y: 2880, angle: 0.3 });
+  woodDrops.push({ id: seq++, x: 3060, y: 2950, angle: -0.4 });
+  woodDrops.push({ id: seq++, x: 2980, y: 3070, angle: 0.7 });
+
+  let tries = 0;
+  while (woodDrops.length < count && tries < 1500) {
+    tries++;
+    const wx = 250 + Math.random() * (MAP_SIZE - 500);
+    const wy = 250 + Math.random() * (MAP_SIZE - 500);
+    if (!isInsideBuildingBox(wx, wy, 30, buildings) && !isBlockedAt(wx, wy, 25, buildings, terrain) && !isInWater(wx, wy, terrain)) {
+      woodDrops.push({ id: seq++, x: wx, y: wy, angle: (Math.random() - 0.5) * 1.4 });
+    }
+  }
+  return woodDrops;
+}
+
 function spawnWorldLoot(buildings, terrain) {
   const loot = [];
   let idCounter = 1;
@@ -325,8 +395,7 @@ function spawnWorldLoot(buildings, terrain) {
       const roll = Math.random();
       let item = null;
 
-      // 약 4.5%의 매우 낮은 확률로 갑옷 5종 드랍
-      if (roll < 0.045) {
+      if (roll < 0.05) {
         const aRoll = Math.random();
         const aKey = aRoll < 0.40 ? 'leather' : aRoll < 0.68 ? 'police' : aRoll < 0.86 ? 'military' : aRoll < 0.96 ? 'specops' : 'juggernaut';
         item = { category: 'armor', armorId: aKey, name: `${ARMORS[aKey].name} (방어 ${Math.round(ARMORS[aKey].reduce*100)}%)` };
@@ -334,7 +403,7 @@ function spawnWorldLoot(buildings, terrain) {
         if (roll < 0.58) item = { category: 'medkit', name: '응급 구급상자', amount: 65 };
         else if (roll < 0.82) item = { category: 'water', name: '정제 생수병', amount: 45 };
         else item = { category: 'melee', weaponId: 'knife', name: MELEE_WEAPONS.knife.name };
-      } else if (b.type === '경찰서' || b.type === '군수창고') {
+      } else if (b.type === '경찰서' || b.type === '총포상') {
         if (roll < 0.48) item = { category: 'ammo', name: '군용 탄창 (+25발)', amount: 25 };
         else if (roll < 0.80) {
           const rKey = rangedKeys[Math.floor(Math.random() * rangedKeys.length)];
@@ -360,10 +429,9 @@ function spawnWorldLoot(buildings, terrain) {
     }
   });
 
-  // 동굴 내부 희귀 전리품
   if (terrain && terrain.caves) {
     terrain.caves.forEach(c => {
-      const aKey = armorKeys[2 + Math.floor(Math.random() * 3)]; // 고급 방탄복 이상
+      const aKey = armorKeys[2 + Math.floor(Math.random() * 3)];
       loot.push({ id: idCounter++, x: c.x - 18, y: c.y, category: 'armor', armorId: aKey, name: `${ARMORS[aKey].name} (방어 ${Math.round(ARMORS[aKey].reduce*100)}%)` });
       loot.push({ id: idCounter++, x: c.x + 22, y: c.y + 10, category: 'ranged', weaponId: 'sniper', name: RANGED_WEAPONS.sniper.name });
     });
@@ -421,7 +489,7 @@ function banAndKickPlayer(room, p, reason) {
   if (p.clientIp) room.bans[p.clientIp] = banUntil;
   if (p.nickname) room.bans['nick:' + p.nickname] = banUntil;
 
-  io.to(room.id).emit('killFeed', `💀 [사망 추방] '${p.nickname}' (점수: ${p.score}점) 사망 추방! (10분간 재입장 금지)`);
+  io.to(room.id).emit('killFeed', `💀 [사망 추방] '${p.nickname}' (점수: ${Math.floor(p.score)}점) 사망 추방! (10분간 재입장 금지)`);
   io.to(p.id).emit('kickedAndBanned', reason);
 
   const targetSock = io.sockets.sockets.get(p.id);
@@ -433,10 +501,8 @@ function banAndKickPlayer(room, p, reason) {
   io.emit('roomList', getRoomList());
 }
 
-// 플레이어에게 데미지 적용 (갑옷 방어력 및 브루트 패시브 반영)
 function applyDamageToPlayer(target, rawDmg) {
   if (target.isPlayerMutant) {
-    // 브루트 패시브: 받는 피해 35% 감소
     const mult = target.mutantType === 'BRUTE' ? 0.65 : 1.0;
     target.hp -= Math.round(rawDmg * mult);
   } else {
@@ -445,13 +511,11 @@ function applyDamageToPlayer(target, rawDmg) {
   }
 }
 
-// 변칙 좀비 고유 스킬 발동
 function triggerMutantSkill(room, actor, isPlayer, now) {
   const mType = isPlayer ? actor.mutantType : actor.type;
   const ang = actor.angle || 0;
 
   if (mType === 'BRUTE') {
-    // 대지 강타: 반경 175px 충격파 + 광역 피해 + 슬로우 2.5초
     io.to(room.id).emit('fxEvent', { type: 'shockwave', x: actor.x, y: actor.y, color: '#ef4444' });
     Object.values(room.players).forEach(t => {
       if (t.id === actor.id || t.isPlayerMutant) return;
@@ -463,7 +527,6 @@ function triggerMutantSkill(room, actor, isPlayer, now) {
       }
     });
   } else if (mType === 'STALKER') {
-    // 그림자 도약: 전방 240px 순간 돌진 도약
     io.to(room.id).emit('fxEvent', { type: 'dash', x: actor.x, y: actor.y });
     for (let step = 0; step < 12; step++) {
       const nx = actor.x + Math.cos(ang) * 20;
@@ -475,7 +538,6 @@ function triggerMutantSkill(room, actor, isPlayer, now) {
     }
     io.to(room.id).emit('fxEvent', { type: 'shockwave', x: actor.x, y: actor.y, color: '#a855f7' });
   } else if (mType === 'ACID') {
-    // 산성액 분사: 전방 140px 위치에 7초간 지속되는 독성 장판 생성
     const px = actor.x + Math.cos(ang) * 120;
     const py = actor.y + Math.sin(ang) * 120;
     room.acidPools.push({
@@ -488,7 +550,6 @@ function triggerMutantSkill(room, actor, isPlayer, now) {
     });
     io.to(room.id).emit('fxEvent', { type: 'shockwave', x: px, y: py, color: '#84cc16' });
   } else if (mType === 'SCREAMER') {
-    // 공포의 비명: 반경 260px 생존자 슬로우 + 반경 900px 일반 좀비 집결
     io.to(room.id).emit('fxEvent', { type: 'shockwave', x: actor.x, y: actor.y, color: '#f59e0b' });
     Object.values(room.players).forEach(t => {
       if (t.id === actor.id || t.isPlayerMutant) return;
@@ -504,7 +565,6 @@ function triggerMutantSkill(room, actor, isPlayer, now) {
       }
     });
   } else if (mType === 'BOMBER') {
-    // 자폭 점화: 1.2초간 초고속 돌진 후 대폭발
     actor.dashUntil = now + 1200;
     actor.dashAngle = ang;
     actor.bomberIgnited = now + 1200;
@@ -530,6 +590,8 @@ io.on('connection', (socket) => {
       buildings,
       terrain,
       loot: spawnWorldLoot(buildings, terrain),
+      woodDrops: spawnStreetWood(buildings, terrain, 45),
+      barricades: [],
       acidPools: [],
       players: {},
       zombies: [],
@@ -537,7 +599,9 @@ io.on('connection', (socket) => {
       bans: {},
       zombieIdSeq: 1,
       bulletIdSeq: 1,
-      poolIdSeq: 1
+      poolIdSeq: 1,
+      barricadeIdSeq: 1,
+      woodIdSeq: 100
     };
     joinRoom(socket, roomId, nickname);
     io.emit('roomList', getRoomList());
@@ -592,6 +656,7 @@ io.on('connection', (socket) => {
       dmg: 14,
       color: '#1d4ed8',
       armor: null,
+      wood: 1,
       score: 0,
       kills: 0,
       slowUntil: 0,
@@ -599,12 +664,17 @@ io.on('connection', (socket) => {
       dashUntil: 0,
       dashAngle: 0,
       isDashing: false,
-      activeSlot: 'melee',
+      activeSlot: 'melee', // 'melee' | 'ranged' | 'build'
       melee: MELEE_WEAPONS.fist,
       ranged: null,
       reserveAmmo: 0,
+      reloading: false,
+      reloadStart: 0,
+      reloadDuration: 0,
+      reloadProgress: 0,
       inv: { food: 1, water: 1, medkit: 1 },
       lastAttack: 0,
+      lastBuild: 0,
       swingAnim: 0,
       muzzleFlash: 0
     };
@@ -621,7 +691,6 @@ io.on('connection', (socket) => {
     io.emit('roomList', getRoomList());
   }
 
-  // 실시간 채팅 송수신
   socket.on('chatMessage', (text) => {
     const room = rooms[socket.roomId];
     if (!room || !room.players[socket.id]) return;
@@ -660,6 +729,8 @@ io.on('connection', (socket) => {
         dmg: mSpec.dmg,
         color: mSpec.color,
         lastHit: 0,
+        windup: 0,
+        strikeAnim: 0,
         wanderAngle: Math.random() * Math.PI * 2,
         nextWanderChange: Date.now() + 2000,
         avoidDir: 1,
@@ -691,7 +762,6 @@ io.on('connection', (socket) => {
 
     // [변칙 좀비로 플레이 중일 때]
     if (p.isPlayerMutant) {
-      // 고유 스킬 발동 (E키 또는 R키 또는 Shift, 쿨타임 8초)
       if ((data.skill || data.reload || data.sprint) && now - p.lastSkill >= 8000) {
         p.lastSkill = now;
         triggerMutantSkill(room, p, true, now);
@@ -709,13 +779,32 @@ io.on('connection', (socket) => {
 
       p.x = Math.max(30, Math.min(MAP_SIZE - 30, p.x + p.vx));
       p.y = Math.max(30, Math.min(MAP_SIZE - 30, p.y + p.vy));
-      resolveWorldCollisions(p, p.radius, room.buildings, room.terrain);
+      resolveWorldCollisions(p, p.radius, room.buildings, room.terrain, room.barricades);
 
       if (data.attack && now - p.lastAttack >= 750) {
         p.lastAttack = now;
         p.swingAnim = 1.0;
-        io.to(room.id).emit('fxEvent', { type: 'melee', x: p.x, y: p.y, angle: p.angle });
+        io.to(room.id).emit('fxEvent', {
+          type: 'zombieSlash',
+          x: p.x + Math.cos(p.angle) * (p.radius * 0.5),
+          y: p.y + Math.sin(p.angle) * (p.radius * 0.5),
+          angle: p.angle,
+          color: '#a3e635',
+          range: p.radius + 36,
+          claws: 4
+        });
 
+        // 바리케이드 공격
+        for (let bIdx = room.barricades.length - 1; bIdx >= 0; bIdx--) {
+          const bar = room.barricades[bIdx];
+          if (circleOBBDistanceInfo(p.x, p.y, bar).dist <= p.radius + 32) {
+            bar.hp -= p.dmg;
+            io.to(room.id).emit('fxEvent', { type: 'woodHit', x: bar.x, y: bar.y, dmg: p.dmg });
+            break;
+          }
+        }
+
+        // 생존자 공격
         Object.values(room.players).forEach(target => {
           if (target.id === p.id || target.isPlayerMutant) return;
           const dist = Math.hypot(target.x - p.x, target.y - p.y);
@@ -756,18 +845,37 @@ io.on('connection', (socket) => {
     p.vy = data.dy * speed;
     p.x = Math.max(30, Math.min(MAP_SIZE - 30, p.x + p.vx));
     p.y = Math.max(30, Math.min(MAP_SIZE - 30, p.y + p.vy));
-    resolveWorldCollisions(p, 18, room.buildings, room.terrain);
+    resolveWorldCollisions(p, 18, room.buildings, room.terrain, room.barricades);
 
-    if (data.slot === 'melee') p.activeSlot = 'melee';
-    if (data.slot === 'ranged' && p.ranged) p.activeSlot = 'ranged';
+    // 거리에 떨어진 나무 자동 획득 (닿거나 F키)
+    for (let i = room.woodDrops.length - 1; i >= 0; i--) {
+      const wd = room.woodDrops[i];
+      const d = Math.hypot(p.x - wd.x, p.y - wd.y);
+      if (d < 34 || (data.interact && d < 68)) {
+        room.woodDrops.splice(i, 1);
+        p.wood += 1;
+        p.score += 10;
+        io.to(p.id).emit('sfx', 'pickup');
+        io.to(p.id).emit('statusNotice', `🪵 나무 +1 획득! (보유: ${p.wood}개)`);
+        break;
+      }
+    }
 
-    if (data.reload && p.ranged && p.reserveAmmo > 0) {
+    // 슬롯 변경 (1: 근접, 2: 원거리, 6: 바리케이드)
+    if (data.slot === 'melee') { p.activeSlot = 'melee'; p.reloading = false; }
+    if (data.slot === 'ranged' && p.ranged) { p.activeSlot = 'ranged'; p.reloading = false; }
+    if (data.slot === 'build') { p.activeSlot = 'build'; p.reloading = false; }
+
+    // 총기 장전 모션 시작 (R키)
+    if (data.reload && p.activeSlot === 'ranged' && p.ranged && !p.reloading && p.reserveAmmo > 0) {
       const need = p.ranged.magSize - p.ranged.currentMag;
       if (need > 0) {
-        const load = Math.min(need, p.reserveAmmo);
-        p.ranged.currentMag += load;
-        p.reserveAmmo -= load;
+        p.reloading = true;
+        p.reloadStart = now;
+        p.reloadDuration = p.ranged.reloadTime;
+        p.reloadProgress = 0;
         io.to(p.id).emit('sfx', 'reload');
+        io.to(room.id).emit('fxEvent', { type: 'magDrop', x: p.x, y: p.y, angle: p.angle });
       }
     }
 
@@ -790,6 +898,7 @@ io.on('connection', (socket) => {
       io.to(p.id).emit('sfx', 'heal');
     }
 
+    // 건물 아이템 파밍 (F키)
     if (data.interact) {
       for (let i = room.loot.length - 1; i >= 0; i--) {
         const item = room.loot[i];
@@ -804,10 +913,12 @@ io.on('connection', (socket) => {
           } else if (item.category === 'melee') {
             p.melee = MELEE_WEAPONS[item.weaponId];
             p.activeSlot = 'melee';
+            p.reloading = false;
           } else if (item.category === 'ranged') {
             const w = RANGED_WEAPONS[item.weaponId];
             p.ranged = { ...w, currentMag: w.magSize };
             p.activeSlot = 'ranged';
+            p.reloading = false;
           }
           p.score += 15;
           io.to(p.id).emit('sfx', 'pickup');
@@ -818,8 +929,46 @@ io.on('connection', (socket) => {
       }
     }
 
+    // 클릭 동작: 바리케이드 설치 OR 근접 공격 OR 원거리 사격
     if (data.attack) {
-      if (p.activeSlot === 'melee') {
+      if (p.activeSlot === 'build') {
+        if (now - p.lastBuild >= 350) {
+          p.lastBuild = now;
+          if (p.wood <= 0) {
+            io.to(p.id).emit('statusNotice', '⚠️ 나무가 부족합니다! 거리에서 나무를 주우세요.');
+            return;
+          }
+          const bx = p.x + Math.cos(p.angle) * 66;
+          const by = p.y + Math.sin(p.angle) * 66;
+          const bAngle = p.angle + Math.PI / 2;
+
+          let blocked = isBlockedAt(bx, by, 26, room.buildings, room.terrain) || isInWater(bx, by, room.terrain);
+          if (!blocked) {
+            for (const existing of room.barricades) {
+              if (Math.hypot(existing.x - bx, existing.y - by) < 48) { blocked = true; break; }
+            }
+          }
+          if (blocked) {
+            io.to(p.id).emit('statusNotice', '⚠️ 이 위치에는 바리케이드를 설치할 수 없습니다.');
+            return;
+          }
+
+          p.wood -= 1;
+          p.score += 20;
+          room.barricades.push({
+            id: room.barricadeIdSeq++,
+            x: bx,
+            y: by,
+            angle: bAngle,
+            w: 86,
+            h: 20,
+            hp: 50,
+            maxHp: 50
+          });
+          io.to(p.id).emit('sfx', 'pickup');
+          io.to(room.id).emit('fxEvent', { type: 'woodBuild', x: bx, y: by });
+        }
+      } else if (p.activeSlot === 'melee') {
         const w = p.melee;
         if (now - p.lastAttack >= w.cd && p.stamina >= w.stam) {
           p.lastAttack = now;
@@ -861,9 +1010,20 @@ io.on('connection', (socket) => {
             }
           });
         }
-      } else if (p.activeSlot === 'ranged' && p.ranged) {
+      } else if (p.activeSlot === 'ranged' && p.ranged && !p.reloading) {
         const w = p.ranged;
-        if (now - p.lastAttack >= w.cd && w.currentMag > 0) {
+        if (now - p.lastAttack >= w.cd) {
+          if (w.currentMag <= 0) {
+            if (p.reserveAmmo > 0) {
+              p.reloading = true;
+              p.reloadStart = now;
+              p.reloadDuration = w.reloadTime;
+              p.reloadProgress = 0;
+              io.to(p.id).emit('sfx', 'reload');
+              io.to(room.id).emit('fxEvent', { type: 'magDrop', x: p.x, y: p.y, angle: p.angle });
+            }
+            return;
+          }
           p.lastAttack = now;
           p.muzzleFlash = 1.0;
           w.currentMag--;
@@ -908,7 +1068,7 @@ setInterval(() => {
 
     room.worldTime = (room.worldTime + 0.0002) % 1;
 
-    // 1. 기본 좀비 주기적 스폰
+    // 1. 일반 좀비 3종 (워커, 러너, 떡대 좀비) 주기적 스폰
     if (now - room.lastZombieSpawn >= room.spawnInterval * 1000 && room.zombies.length < 150) {
       room.lastZombieSpawn = now;
       const humanPlayers = playerList.filter(pl => !pl.isPlayerMutant);
@@ -918,22 +1078,27 @@ setInterval(() => {
           const dist = 620 + Math.random() * 480;
           const zx = Math.max(50, Math.min(MAP_SIZE - 50, p.x + Math.cos(ang) * dist));
           const zy = Math.max(50, Math.min(MAP_SIZE - 50, p.y + Math.sin(ang) * dist));
-          if (isBlockedAt(zx, zy, 18, room.buildings, room.terrain)) continue;
+          if (isBlockedAt(zx, zy, 24, room.buildings, room.terrain)) continue;
+
+          const roll = Math.random();
+          const zSpec = roll < 0.55 ? NORMAL_ZOMBIES[0] : roll < 0.85 ? NORMAL_ZOMBIES[1] : NORMAL_ZOMBIES[2];
           room.zombies.push({
             id: room.zombieIdSeq++,
             isMutant: false,
-            type: 'NORMAL',
-            name: '감염자',
+            type: zSpec.type,
+            name: zSpec.name,
             x: zx,
             y: zy,
             angle: Math.random() * Math.PI * 2,
-            hp: 80,
-            maxHp: 80,
-            speed: 3.45 + Math.random() * 0.4,
-            radius: 18,
-            dmg: 14,
-            color: '#386641',
+            hp: zSpec.hp,
+            maxHp: zSpec.hp,
+            speed: zSpec.speed + (Math.random() - 0.5) * 0.2,
+            radius: zSpec.radius,
+            dmg: zSpec.dmg,
+            color: zSpec.color,
             lastHit: 0,
+            windup: 0,
+            strikeAnim: 0,
             wanderAngle: Math.random() * Math.PI * 2,
             nextWanderChange: now + 1500 + Math.random() * 2500,
             avoidDir: Math.random() < 0.5 ? 1 : -1,
@@ -962,14 +1127,24 @@ setInterval(() => {
       });
     }
 
-    // 3. 플레이어 상태, 생존 스코어, 패시브 오라, 감염 선택 처리
+    // 3. 플레이어 상태, 장전 진행도, 스코어, 감염 처리
     playerList.forEach(p => {
       p.swingAnim = Math.max(0, p.swingAnim - 0.16);
       p.muzzleFlash = Math.max(0, p.muzzleFlash - 0.25);
 
-      // 변이 플레이어 상태
+      if (p.reloading && p.ranged) {
+        p.reloadProgress = Math.min(1, (now - p.reloadStart) / p.reloadDuration);
+        if (p.reloadProgress >= 1) {
+          const need = p.ranged.magSize - p.ranged.currentMag;
+          const load = Math.min(need, p.reserveAmmo);
+          p.ranged.currentMag += load;
+          p.reserveAmmo -= load;
+          p.reloading = false;
+          p.reloadProgress = 0;
+        }
+      }
+
       if (p.isPlayerMutant) {
-        // 보머 자폭 점화 만료 시 대폭발
         if (p.bomberIgnited && now >= p.bomberIgnited) {
           p.bomberIgnited = 0;
           io.to(room.id).emit('fxEvent', { type: 'explosion', x: p.x, y: p.y });
@@ -982,7 +1157,6 @@ setInterval(() => {
           p.hp = 0;
         }
 
-        // 애시드 패시브: 주변 85px 생존자 지속 독 피해
         if (p.mutantType === 'ACID') {
           playerList.forEach(t => {
             if (!t.isPlayerMutant && Math.hypot(t.x - p.x, t.y - p.y) < 85) {
@@ -1015,6 +1189,8 @@ setInterval(() => {
             dmg: mSpec.dmg,
             color: mSpec.color,
             lastHit: 0,
+            windup: 0,
+            strikeAnim: 0,
             wanderAngle: Math.random() * Math.PI * 2,
             nextWanderChange: now + 2000,
             avoidDir: 1,
@@ -1033,7 +1209,6 @@ setInterval(() => {
         return;
       }
 
-      // 생존 시간 보너스 점수 (초당 +1점)
       p.score += 0.05;
       p.hunger = Math.max(0, p.hunger - 0.035);
       p.thirst = Math.max(0, p.thirst - 0.05);
@@ -1069,7 +1244,7 @@ setInterval(() => {
       }
     });
 
-    // 4. 총알 충돌 판정
+    // 4. 총알 충돌 (바리케이드 위는 통과)
     for (let i = room.bullets.length - 1; i >= 0; i--) {
       const b = room.bullets[i];
       b.x += b.vx;
@@ -1083,7 +1258,7 @@ setInterval(() => {
         for (let j = 0; j < room.zombies.length; j++) {
           const z = room.zombies[j];
           if (Math.hypot(b.x - z.x, b.y - z.y) <= z.radius + 6) {
-            const dmgMult = z.type === 'BRUTE' ? 0.65 : 1.0; // 브루트 패시브
+            const dmgMult = z.type === 'BRUTE' ? 0.65 : 1.0;
             const finalDmg = Math.max(1, Math.round(b.dmg * dmgMult));
             z.hp -= finalDmg;
             hit = true;
@@ -1121,9 +1296,11 @@ setInterval(() => {
       if (hit || b.life <= 0) room.bullets.splice(i, 1);
     }
 
-    // 5. AI 좀비 이동, 스마트 길찾기, 고유 패시브 및 스킬
+    // 5. 좀비 AI: 스마트 길찾기 + 바리케이드 공격 + 예비동작/타격 모션
     for (let i = room.zombies.length - 1; i >= 0; i--) {
       const z = room.zombies[i];
+      z.strikeAnim = Math.max(0, (z.strikeAnim || 0) - 0.18);
+
       if (z.hp <= 0 || (z.bomberIgnited && now >= z.bomberIgnited)) {
         if (z.type === 'BOMBER') {
           io.to(room.id).emit('fxEvent', { type: 'explosion', x: z.x, y: z.y });
@@ -1141,7 +1318,6 @@ setInterval(() => {
         continue;
       }
 
-      // 애시드 패시브: 주변 80px 생존자 지속 부식
       if (z.type === 'ACID') {
         playerList.forEach(p => {
           if (!p.isPlayerMutant && Math.hypot(p.x - z.x, p.y - z.y) < 80) {
@@ -1150,7 +1326,6 @@ setInterval(() => {
         });
       }
 
-      // 스크리머 패시브 버프 확인
       let speedBuff = 1.0;
       if (!z.isMutant) {
         const hasScreamer = room.zombies.some(sz => sz.type === 'SCREAMER' && Math.hypot(sz.x - z.x, sz.y - z.y) < 320);
@@ -1172,59 +1347,94 @@ setInterval(() => {
       const inWater = isInWater(z.x, z.y, room.terrain);
       const envSpeedMult = (inWater ? 0.65 : 1.0) * speedBuff;
 
+      // 근접한 바리케이드 확인
+      let nearBarricade = null;
+      for (const bar of room.barricades) {
+        if (circleOBBDistanceInfo(z.x, z.y, bar).dist <= z.radius + 18) {
+          nearBarricade = bar;
+          break;
+        }
+      }
+
       if (target && minDist < detectRange) {
-        const smartAng = findSmartPathAngle(z, target.x, target.y, room.buildings, room.terrain);
+        const smartAng = nearBarricade
+          ? Math.atan2(nearBarricade.y - z.y, nearBarricade.x - z.x)
+          : findSmartPathAngle(z, target.x, target.y, room.buildings, room.terrain);
         z.angle = smartAng;
 
-        // 변칙 좀비 고유 스킬 사용 (쿨타임 9초)
         if (z.isMutant && now - (z.lastSkill || 0) >= 9000 && minDist < 320) {
           z.lastSkill = now;
           triggerMutantSkill(room, z, false, now);
         }
 
-        // 일반 좀비 쿨타임 10초 돌진
-        if (!z.isMutant && now > z.dashUntil && now - z.lastDash >= 10000 && minDist > 130 && minDist < 360) {
+        if (!z.isMutant && now > z.dashUntil && now - z.lastDash >= 10000 && minDist > 130 && minDist < 360 && !nearBarricade) {
           z.lastDash = now;
           z.dashUntil = now + 450;
           z.dashAngle = smartAng;
           io.to(room.id).emit('fxEvent', { type: 'dash', x: z.x, y: z.y });
         }
 
-        if (now < z.dashUntil) {
-          z.isDashing = true;
-          z.angle = z.dashAngle;
-          z.x += Math.cos(z.dashAngle) * (z.speed * 3.0);
-          z.y += Math.sin(z.dashAngle) * (z.speed * 3.0);
+        const inAttackRange = nearBarricade || minDist <= z.radius + 22;
+
+        if (inAttackRange) {
+          // 공격 예비 동작 (windup) -> 타격 모션 (strikeAnim)
+          if (now - z.lastHit >= 800 && now - z.lastHit < 1050) {
+            z.windup = Math.min(1, (now - (z.lastHit + 800)) / 250);
+          } else if (now - z.lastHit >= 1050) {
+            z.lastHit = now;
+            z.windup = 0;
+            z.strikeAnim = 1.0;
+
+            io.to(room.id).emit('fxEvent', {
+              type: 'zombieSlash',
+              x: z.x + Math.cos(z.angle) * (z.radius * 0.5),
+              y: z.y + Math.sin(z.angle) * (z.radius * 0.5),
+              angle: z.angle,
+              color: z.isMutant ? '#a3e635' : z.type === 'TANKER' ? '#f97316' : '#ef4444',
+              range: z.radius + 26,
+              claws: z.isMutant ? 4 : 3
+            });
+
+            if (nearBarricade) {
+              nearBarricade.hp -= z.dmg;
+              io.to(room.id).emit('fxEvent', { type: 'woodHit', x: nearBarricade.x, y: nearBarricade.y, dmg: z.dmg });
+            } else {
+              const hitDmg = z.isDashing ? Math.round(z.dmg * 1.4) : z.dmg;
+              applyDamageToPlayer(target, hitDmg);
+              io.to(target.id).emit('playerDamaged');
+
+              if (!target.bitten && Math.random() < 0.10) {
+                target.bitten = true;
+                target.biteTimer = 30;
+                io.to(target.id).emit('sfx', 'bite');
+                io.to(room.id).emit('killFeed', `🩸 경고! '${target.nickname}' 님이 좀비에게 물렸습니다! (발병 30초 전)`);
+              }
+            }
+          }
         } else {
-          z.isDashing = false;
-          z.x += Math.cos(smartAng) * z.speed * envSpeedMult;
-          z.y += Math.sin(smartAng) * z.speed * envSpeedMult;
-        }
-
-        resolveWorldCollisions(z, z.radius, room.buildings, room.terrain);
-
-        if (minDist <= z.radius + 19 && now - z.lastHit >= 1000) {
-          z.lastHit = now;
-          const hitDmg = z.isDashing ? Math.round(z.dmg * 1.4) : z.dmg;
-          applyDamageToPlayer(target, hitDmg);
-          io.to(target.id).emit('playerDamaged');
-
-          if (!target.bitten && Math.random() < 0.10) {
-            target.bitten = true;
-            target.biteTimer = 30;
-            io.to(target.id).emit('sfx', 'bite');
-            io.to(room.id).emit('killFeed', `🩸 경고! '${target.nickname}' 님이 좀비에게 물렸습니다! (발병 30초 전)`);
+          z.windup = 0;
+          if (now < z.dashUntil) {
+            z.isDashing = true;
+            z.angle = z.dashAngle;
+            z.x += Math.cos(z.dashAngle) * (z.speed * 3.0);
+            z.y += Math.sin(z.dashAngle) * (z.speed * 3.0);
+          } else {
+            z.isDashing = false;
+            z.x += Math.cos(smartAng) * z.speed * envSpeedMult;
+            z.y += Math.sin(smartAng) * z.speed * envSpeedMult;
           }
         }
+
+        resolveWorldCollisions(z, z.radius, room.buildings, room.terrain, room.barricades);
       } else if (z.alertTargetPos && now < z.alertTargetPos.until) {
-        // 스크리머 비명 소집 위치로 이동
         const ang = findSmartPathAngle(z, z.alertTargetPos.x, z.alertTargetPos.y, room.buildings, room.terrain);
         z.angle = ang;
         z.x += Math.cos(ang) * z.speed * envSpeedMult;
         z.y += Math.sin(ang) * z.speed * envSpeedMult;
-        resolveWorldCollisions(z, z.radius, room.buildings, room.terrain);
+        resolveWorldCollisions(z, z.radius, room.buildings, room.terrain, room.barricades);
       } else {
         z.isDashing = false;
+        z.windup = 0;
         const lookAhead = z.radius + 25;
         if (
           now >= z.nextWanderChange ||
@@ -1237,16 +1447,26 @@ setInterval(() => {
         const wanderSpeed = z.speed * 0.35;
         z.x = Math.max(40, Math.min(MAP_SIZE - 40, z.x + Math.cos(z.wanderAngle) * wanderSpeed));
         z.y = Math.max(40, Math.min(MAP_SIZE - 40, z.y + Math.sin(z.wanderAngle) * wanderSpeed));
-        resolveWorldCollisions(z, z.radius, room.buildings, room.terrain);
+        resolveWorldCollisions(z, z.radius, room.buildings, room.terrain, room.barricades);
       }
     }
 
-    if (now - room.lastLootRefill >= 90000 && room.loot.length < 80) {
-      room.lastLootRefill = now;
-      room.loot.push(...spawnWorldLoot(room.buildings, room.terrain).slice(0, 35));
+    // 6. 파괴된 바리케이드 정리
+    for (let i = room.barricades.length - 1; i >= 0; i--) {
+      if (room.barricades[i].hp <= 0) {
+        const b = room.barricades[i];
+        io.to(room.id).emit('fxEvent', { type: 'woodBreak', x: b.x, y: b.y });
+        room.barricades.splice(i, 1);
+      }
     }
 
-    // 실시간 TOP 5 스코어 랭킹 계산
+    // 7. 파밍 아이템 및 거리 나무 주기적 보충
+    if (now - room.lastLootRefill >= 90000) {
+      room.lastLootRefill = now;
+      if (room.loot.length < 80) room.loot.push(...spawnWorldLoot(room.buildings, room.terrain).slice(0, 35));
+      if (room.woodDrops.length < 40) room.woodDrops.push(...spawnStreetWood(room.buildings, room.terrain, 20));
+    }
+
     const leaderboard = playerList
       .map(pl => ({ id: pl.id, nickname: pl.nickname, score: Math.floor(pl.score), kills: pl.kills, isMutant: pl.isPlayerMutant }))
       .sort((a, b) => b.score - a.score)
@@ -1258,6 +1478,8 @@ setInterval(() => {
       zombies: room.zombies,
       bullets: room.bullets,
       loot: room.loot,
+      woodDrops: room.woodDrops,
+      barricades: room.barricades,
       acidPools: room.acidPools,
       leaderboard
     });
