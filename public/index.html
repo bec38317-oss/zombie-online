@@ -11,7 +11,7 @@
     <div class="lobby-box">
       <div class="badge">ULTRA HD MULTIPLAYER SURVIVAL</div>
       <h1>DEAD ZONE : OUTBREAK</h1>
-      <p class="subtitle">6000×6000 오픈월드 · 무기 15종 · 방탄복 5종 · 5종 변칙 감염</p>
+      <p class="subtitle">6000×6000 오픈월드 · 무기 15종 · 방탄복 5종 · 바리케이드 건설 · 5종 변칙 감염</p>
 
       <div class="nick-row">
         <input type="text" id="nickname" placeholder="생존자 콜사인(닉네임) 입력..." maxlength="12" />
@@ -72,11 +72,10 @@
       <div id="coordDisplay">좌표: 3000, 3000 | 점수: 0 | 사살: 0</div>
       <div id="armorDisplay">🛡️ 방어구: 없음 (피해감소 0%)</div>
       <div id="controlsHelp" class="controls-help">
-        <b>WASD</b> 이동 · <b>Shift</b> 달리기 · <b>좌클릭</b> 공격 · <b>R</b> 장전 · <b>F</b> 파밍 · <b>Enter</b> 채팅
+        <b>WASD</b> 이동 · <b>Shift</b> 달리기 · <b>좌클릭</b> 공격/설치 · <b>R</b> 장전 · <b>F</b> 파밍 · <b>6</b> 바리케이드 · <b>Enter</b> 채팅
       </div>
     </div>
 
-    <!-- 실시간 스코어 & TOP 5 랭킹 보드 -->
     <div id="rankingBox">
       <div class="rank-title">🏆 생존자 랭킹 (SCORE)</div>
       <div id="rankingList"></div>
@@ -84,7 +83,6 @@
 
     <div id="killFeed"></div>
 
-    <!-- 실시간 멀티플레이 채팅창 -->
     <div id="chatBox">
       <div id="chatMessages"></div>
       <input type="text" id="chatInput" placeholder="Enter 키를 눌러 채팅 입력..." maxlength="80" />
@@ -103,6 +101,7 @@
       <div class="slot"><small>[3] 식량</small><div>× <span id="foodCnt">1</span></div></div>
       <div class="slot"><small>[4] 물</small><div>× <span id="waterCnt">1</span></div></div>
       <div class="slot"><small>[5] 구급상자</small><div>× <span id="medCnt">1</span></div></div>
+      <div id="slot6" class="slot"><small>[6] 바리케이드</small><div>나무 × <span id="woodCnt">1</span></div></div>
     </div>
   </div>
 
