@@ -610,7 +610,6 @@ function drawBarricades(me) {
 
     // 바리케이드 체력바 (최대 50)
     const bw = 56, bh = 6;
-    const ratio = Math.max(0, bar.hp / (bar.maxHp || 50));
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(bar.x - bw / 2, bar.y - 26, bw, bh);
     ctx.fillStyle = ratio > 0.5 ? '#22c55e' : ratio > 0.25 ? '#f59e0b' : '#ef4444';
