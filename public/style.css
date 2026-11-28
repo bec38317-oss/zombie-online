@@ -93,7 +93,6 @@ h1 { color: #ef4444; font-size: 36px; letter-spacing: 3px; text-shadow: 0 0 22px
 }
 .controls-help { font-size: 12px; color: #a3a3a3; background: rgba(0,0,0,0.65); padding: 5px 10px; border-radius: 4px; }
 
-/* 랭킹 보드 */
 #rankingBox {
   position: absolute; top: 205px; right: 20px; width: 215px;
   background: rgba(10, 13, 10, 0.86); border: 1px solid #2e342e;
@@ -112,7 +111,6 @@ h1 { color: #ef4444; font-size: 36px; letter-spacing: 3px; text-shadow: 0 0 22px
   padding: 6px 12px; border-radius: 4px; font-size: 12px; color: #e5e7eb;
 }
 
-/* 채팅창 */
 #chatBox {
   position: absolute; bottom: 165px; left: 22px; width: 320px;
   pointer-events: auto; display: flex; flex-direction: column; gap: 4px;
@@ -150,8 +148,8 @@ h1 { color: #ef4444; font-size: 36px; letter-spacing: 3px; text-shadow: 0 0 22px
   display: flex; gap: 8px;
 }
 .slot {
-  background: rgba(14, 16, 14, 0.92); border: 1px solid #333833; padding: 10px 16px;
-  border-radius: 8px; text-align: center; min-width: 108px;
+  background: rgba(14, 16, 14, 0.92); border: 1px solid #333833; padding: 10px 14px;
+  border-radius: 8px; text-align: center; min-width: 100px;
 }
 .slot small { display: block; font-size: 10px; color: #888; margin-bottom: 3px; }
 .slot div { font-size: 13px; font-weight: bold; }
